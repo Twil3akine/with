@@ -1,6 +1,6 @@
 use rustyline::{
-    Completer, Editor, Helper, Hinter, Result, Validator, error::ReadlineError,
-    highlight::Highlighter,
+    Cmd, Completer, Editor, Helper, Hinter, KeyPress, Movement, Result, Validator,
+    error::ReadlineError, highlight::Highlighter,
 };
 use shell_words;
 use std::{borrow::Cow, env, eprintln, process};
@@ -35,6 +35,7 @@ fn main() -> Result<()> {
     let mut rl = Editor::<MyHelper, rustyline::history::DefaultHistory>::new()
         .expect("Failed Initialing editor.");
     rl.set_helper(Some(MyHelper {}));
+    rl.bind_sequence(KeyPress::Esc, Cmd::Kill(Movement::WholeLine));
 
     loop {
         let readline = rl.readline(&format!("{}> ", cmd));
@@ -51,6 +52,7 @@ fn main() -> Result<()> {
                     "e" | "q" | "exit" | "quit" => {
                         return Ok(());
                     }
+
                     _ => {}
                 }
 
