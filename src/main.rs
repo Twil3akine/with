@@ -19,5 +19,20 @@ fn main() {
         process::exit(1);
     }
 
-    let cmd: &String = &args[1];
+    let cmd: &String = &format!("\x1b[36m{}\x1b[39m", args[1]).to_string();
+
+    loop {
+        print!("{}> ", cmd);
+        stdout().flush().unwrap();
+
+        let receive_string: String = input();
+
+        match receive_string.as_str() {
+            "exit" | "quit" => break,
+            command => {
+                println!("{} {}", cmd, command);
+                println!();
+            }
+        }
+    }
 }
