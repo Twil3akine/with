@@ -15,7 +15,7 @@ impl Highlighter for MyHelper {
         _default: bool,
     ) -> Cow<'b, str> {
         if prompt.contains(">") {
-            let styled = prompt.replace(">", "\x1b[39m> ");
+            let styled = prompt.replace(">", "\x1b[39m>");
             Cow::Owned(format!("\x1b[36m{}", styled))
         } else {
             Cow::Borrowed(prompt)
