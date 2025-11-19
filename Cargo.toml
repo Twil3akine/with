@@ -2,6 +2,10 @@
 name = "with"
 version = "0.1.0"
 edition = "2024"
+authors = ["twil3akine <twil3akine@gmail.com>"]
+description = "A CLI wrapper tool that enables interactive shell mode for any command."
+licence = "MIT"
+repository = "https://github.com/twil3akine/with"
 
 [dependencies]
 rustyline = { version = "17.0.2", features = ["derive"] }
