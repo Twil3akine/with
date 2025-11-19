@@ -1,3 +1,4 @@
+use shell_words;
 use std::{
     env, eprintln,
     io::{Write, stdin, stdout},
@@ -8,7 +9,7 @@ fn input() -> String {
     let mut str: String = String::new();
     stdin().read_line(&mut str).unwrap();
 
-    str.trim().parse().unwrap()
+    str.trim().to_string()
 }
 
 fn main() {
@@ -27,20 +28,35 @@ fn main() {
 
         let receive_string: String = input();
 
+        if receive_string.is_empty() {
+            continue;
+        }
+
         match receive_string.as_str() {
             "exit" | "quit" | "e" | "q" => break,
             command => {
-                let args: Vec<&str> = command.split_whitespace().collect::<Vec<&str>>();
+                let args = match shell_words::split(command) {
+                    Ok(a) => a,
+                    Err(e) => {
+                        eprintln!("Error parsing command: {}", e);
+                        continue;
+                    }
+                };
+
                 let mut prompt = process::Command::new(cmd);
                 prompt.args(args);
-                prompt
-                    .spawn()
-                    .expect("Failed Ignission Command.")
-                    .wait()
-                    .expect("Happend Error Executing Command.");
+
+                match prompt.spawn() {
+                    Ok(mut subprocess) => {
+                        let _ = subprocess.wait();
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to execute command: {}", e);
+                    }
+                }
             }
         }
-        
+
         println!();
     }
 }
