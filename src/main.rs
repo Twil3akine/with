@@ -1,41 +1,60 @@
-use shell_words;
-use std::{
-    env, eprintln,
-    io::{Write, stdin, stdout},
-    process,
+use rustyline::{
+    Completer, Editor, Helper, Hinter, Result, Validator, error::ReadlineError,
+    highlight::Highlighter,
 };
+use shell_words;
+use std::{borrow::Cow, env, eprintln, process};
 
-fn input() -> String {
-    let mut str: String = String::new();
-    stdin().read_line(&mut str).unwrap();
+#[derive(Helper, Completer, Hinter, Validator)]
+struct MyHelper {}
 
-    str.trim().to_string()
+impl Highlighter for MyHelper {
+    fn highlight_prompt<'b, 's: 'b, 'p: 'b>(
+        &'s self,
+        prompt: &'p str,
+        _default: bool,
+    ) -> Cow<'b, str> {
+        if prompt.contains(">") {
+            let styled = prompt.replace(">", "\x1b[39m> ");
+            Cow::Owned(format!("\x1b[36m{}", styled))
+        } else {
+            Cow::Borrowed(prompt)
+        }
+    }
 }
 
-fn main() {
+fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect::<Vec<String>>();
 
-    if args.len() <= 1 {
+    if args.len() != 2 {
         eprintln!("Usage: with <COMMAND>");
         process::exit(1);
     }
 
     let cmd: &String = &args[1];
+    let mut rl = Editor::<MyHelper, rustyline::history::DefaultHistory>::new()
+        .expect("Failed Initialing editor.");
+    rl.set_helper(Some(MyHelper {}));
 
     loop {
-        print!("\x1b[36m{}\x1b[39m> ", &cmd);
-        stdout().flush().unwrap();
+        let readline = rl.readline(&format!("{}> ", cmd));
 
-        let receive_string: String = input();
+        match readline {
+            Ok(line) => {
+                let line = line.trim();
+                if line.is_empty() {
+                    continue;
+                }
 
-        if receive_string.is_empty() {
-            continue;
-        }
+                let _ = rl.add_history_entry(line);
+                match line {
+                    "e" | "q" | "exit" | "quit" => {
+                        return Ok(());
+                    }
+                    _ => {}
+                }
 
-        match receive_string.as_str() {
-            "exit" | "quit" | "e" | "q" => break,
-            command => {
-                let args = match shell_words::split(command) {
+                let args = match shell_words::split(line) {
                     Ok(a) => a,
                     Err(e) => {
                         eprintln!("Error parsing command: {}", e);
@@ -54,6 +73,13 @@ fn main() {
                         eprintln!("Failed to execute command: {}", e);
                     }
                 }
+            }
+            Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => {
+                return Ok(());
+            }
+            Err(e) => {
+                println!("Error: {:?}", e);
+                continue;
             }
         }
 
