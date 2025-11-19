@@ -19,20 +19,28 @@ fn main() {
         process::exit(1);
     }
 
-    let cmd: &String = &format!("\x1b[36m{}\x1b[39m", args[1]).to_string();
+    let cmd: &String = &args[1];
 
     loop {
-        print!("{}> ", cmd);
+        print!("\x1b[36m{}\x1b[39m> ", &cmd);
         stdout().flush().unwrap();
 
         let receive_string: String = input();
 
         match receive_string.as_str() {
-            "exit" | "quit" => break,
+            "exit" | "quit" | "e" | "q" => break,
             command => {
-                println!("{} {}", cmd, command);
-                println!();
+                let args: Vec<&str> = command.split_whitespace().collect::<Vec<&str>>();
+                let mut prompt = process::Command::new(cmd);
+                prompt.args(args);
+                prompt
+                    .spawn()
+                    .expect("Failed Ignission Command.")
+                    .wait()
+                    .expect("Happend Error Executing Command.");
             }
         }
+        
+        println!();
     }
 }
