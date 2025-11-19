@@ -1,5 +1,5 @@
 use rustyline::{
-    Cmd, Completer, Editor, Helper, Hinter, KeyPress, Movement, Result, Validator,
+    Cmd, Completer, Editor, Helper, Hinter, KeyCode, Modifiers, Movement, Result, Validator,
     error::ReadlineError, highlight::Highlighter,
 };
 use shell_words;
@@ -35,7 +35,10 @@ fn main() -> Result<()> {
     let mut rl = Editor::<MyHelper, rustyline::history::DefaultHistory>::new()
         .expect("Failed Initialing editor.");
     rl.set_helper(Some(MyHelper {}));
-    rl.bind_sequence(KeyPress::Esc, Cmd::Kill(Movement::WholeLine));
+    rl.bind_sequence(
+        rustyline::KeyEvent(KeyCode::Esc, Modifiers::NONE),
+        Cmd::Kill(Movement::WholeLine),
+    );
 
     loop {
         let readline = rl.readline(&format!("{}> ", cmd));
