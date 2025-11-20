@@ -142,9 +142,12 @@ fn run_repl(target_cmd: &str, base_path: &str) -> Result<()> {
                 // 入力された文字列をスペース区切りでパース（引用符などを考慮）して実行
                 match shell_words::split(line) {
                     Ok(mut args) => {
+                        if args.is_empty() {
+                            execute_child_process(target_cmd, args);
+                        }
                         // '!'から始まる場合はエスケープモードに移行
-                        let separate_flg: bool = args[0].len() == 1;
-                        if args[0].starts_with('!') {
+                        else if args[0].starts_with('!') {
+                        	let separate_flg: bool = args[0].len() == 1;
                             if separate_flg {
                                 args.remove(0);
                             }
