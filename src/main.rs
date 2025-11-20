@@ -101,12 +101,10 @@ fn run_repl(target_cmd: &str) -> Result<()> {
                 let line = line.trim();
 
                 // 空行なら何もしないでループ先頭へ
-                if line.is_empty() {
-                    continue;
+                if !line.is_empty() {
+                    // 履歴に追加（矢印キー上が使えるようになる）
+                    rl.add_history_entry(line)?;
                 }
-
-                // 履歴に追加（矢印キー上が使えるようになる）
-                rl.add_history_entry(line)?;
 
                 // 終了コマンドかどうかチェック
                 if EXIT_COMMANDS.contains(&line) {
@@ -137,9 +135,9 @@ fn run_repl(target_cmd: &str) -> Result<()> {
 
 // --- エントリーポイント ---
 fn main() {
-	// Rustylineの入力待ち中のCtrl+Cは、Rustyline側が別途ハンドリングしてくれます。
+    // Rustylineの入力待ち中のCtrl+Cは、Rustyline側が別途ハンドリングしてくれます。
     ctrlc::set_handler(|| {}).expect("Error setting Ctrl-C handler");
-    
+
     // コマンドライン引数を取得
     let args: Vec<String> = env::args().collect::<Vec<String>>();
 
