@@ -4,7 +4,12 @@ use rustyline::{
 };
 use shell_words;
 use std::{
-    borrow::Cow, env, eprintln, format, option::Option::None, println, process, result::Result::Ok,
+    borrow::Cow,
+    env, eprintln, format,
+    option::Option::None,
+    path::{Path, PathBuf},
+    println, process,
+    result::Result::Ok,
 };
 
 // --- 定数定義 ---
@@ -14,8 +19,11 @@ const EXIT_COMMANDS: [&str; 4] = ["e", "q", "exit", "quit"];
 const COLOR_GREEN: &str = "\x1b[32m";
 const COLOR_CYAN: &str = "\x1b[36m";
 const STYLE_BOLD: &str = "\x1b[1m";
-
 const STYLE_RESET: &str = "\x1b[0m"; // 色も太字も全部リセット
+
+// プロンプトの装飾用マーカー（Highlighterでの検知にも使用）
+const PROMPT_OPEN: &str = " [";
+const PROMPT_CLOSE: &str = "]> ";
 
 // --- Rustylineのヘルパー設定 ---
 #[derive(Helper, Completer, Hinter, Validator)]
@@ -30,27 +38,24 @@ impl Highlighter for MyHelper {
     ) -> Cow<'b, str> {
         // プロンプトが "cmd (dir)> " の形かチェックして色付け
         // "(" と ")> " で分割して場所を特定します
-        if let Some(start_idx) = prompt.find(" [") {
-            if let Some(end_idx) = prompt.find("]> ") {
-                // パーツを切り出し
-                let cmd_part = &prompt[0..start_idx]; // "cargo"
-                let dir_part = &prompt[start_idx + 2..end_idx]; // "with" (" (" の2文字分ずらす)
+        if let (Some(start), Some(end)) = (prompt.find(PROMPT_OPEN), prompt.find(PROMPT_CLOSE)) {
+            let cmd_part = &prompt[0..start];
+            // PROMPT_OPENの長さ分ずらす
+            let dir_part = &prompt[start + PROMPT_OPEN.len()..end];
 
-                let styled = format!(
-                    "{}{}{}{} [{}{}{}]{}{}> ",
-                    STYLE_BOLD,
-                    COLOR_CYAN,
-                    cmd_part,
-                    STYLE_RESET, // コマンド
-                    COLOR_GREEN,
-                    dir_part,
-                    STYLE_RESET, // ディレクトリ
-                    STYLE_BOLD,  // 最後の矢印を太字に
-                    STYLE_RESET  // リセット
-                );
-
-                return Cow::Owned(styled);
-            }
+            let styled = format!(
+                "{}{}{}{} [{}{}{}]{}{}> ",
+                STYLE_BOLD,
+                COLOR_CYAN,
+                cmd_part,
+                STYLE_RESET, // Cmd
+                COLOR_GREEN,
+                dir_part,
+                STYLE_RESET, // Dir
+                STYLE_BOLD,  // Arrow
+                STYLE_RESET
+            );
+            return Cow::Owned(styled);
         }
 
         // パースできなかったらそのまま返す
@@ -79,9 +84,87 @@ fn execute_child_process(program: &str, args: Vec<String>) {
     }
 }
 
+/// 表示用のディレクトリ名を取得
+/// base_path (起動時の場所) と同じなら "." を返す
+fn get_display_dir(base_path: &Path) -> String {
+    let current = env::current_dir().unwrap_or_default();
+
+    if current == base_path {
+        ".".to_string()
+    } else {
+        current
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(".")
+            .to_string()
+    }
+}
+
+/// 入力されたコマンドラインを解析して処理を振り分ける
+fn handle_command(line: &str, target_cmd: &str) {
+    let mut args = match shell_words::split(line) {
+        Ok(args) => args,
+        Err(e) => {
+            eprintln!("Error parsing command: {}", e);
+            return;
+        }
+    };
+
+    if args.is_empty() {
+        execute_child_process(target_cmd, args);
+        return;
+    }
+
+    let first_arg = &args[0];
+
+    // 1. 脱出コマンド (!cmd)
+    if first_arg.starts_with('!') {
+        let is_attached = first_arg.len() > 1; // "!ls" vs "! ls"
+
+        let program = if is_attached {
+            // "!ls" -> "ls" (先頭の!を削除)
+            args[0].remove(0);
+            args[0].clone()
+        } else {
+            // "! ls" -> "ls" (先頭要素を捨てる)
+            args.remove(0);
+            // 削除後に要素がなければ何もしない
+            if args.is_empty() {
+                return;
+            }
+            args[0].clone()
+        };
+
+        // コマンド名を除いた引数リストを作成
+        let program_args = if is_attached {
+            args[1..].to_vec()
+        } else {
+            args[1..].to_vec()
+        };
+
+        execute_child_process(&program, program_args);
+    }
+    // 2. 内部コマンド (cd)
+    else if first_arg == "cd" {
+        let target = args.get(1).map(|s| s.as_str());
+        match target {
+            Some(path) => {
+                if let Err(e) = env::set_current_dir(path) {
+                    eprintln!("Failed to change directory: {}", e);
+                }
+            }
+            None => eprintln!("Usage: cd <PATH>"),
+        }
+    }
+    // 3. 通常実行 (Target Command)
+    else {
+        execute_child_process(target_cmd, args);
+    }
+}
+
 // --- メインループ ---
 /// REPL（対話型ループ）のメインロジック
-fn run_repl(target_cmd: &str, base_path: &str) -> Result<()> {
+fn run_repl(target_cmd: &str, base_path: &Path) -> Result<()> {
     // エディタの初期化
     let mut rl = Editor::<MyHelper, rustyline::history::DefaultHistory>::new()?;
     rl.set_helper(Some(MyHelper {}));
@@ -93,13 +176,7 @@ fn run_repl(target_cmd: &str, base_path: &str) -> Result<()> {
     );
 
     loop {
-        // 現在のカレントディレクトリを取得
-        let current_path = env::current_dir().unwrap();
-        let dir_name = if current_path.to_str().unwrap() == base_path {
-            "."
-        } else {
-            current_path.file_stem().unwrap().to_str().unwrap()
-        };
+        let dir_name = get_display_dir(base_path);
 
         // プロンプトの文字列を作成（例: "git> "）
         let prompt = format!("{} [{}]> ", target_cmd, dir_name);
@@ -122,48 +199,7 @@ fn run_repl(target_cmd: &str, base_path: &str) -> Result<()> {
                     break;
                 }
 
-                // 入力された文字列をスペース区切りでパース（引用符などを考慮）して実行
-                match shell_words::split(line) {
-                    Ok(mut args) => {
-                        if args.is_empty() {
-                            execute_child_process(target_cmd, args);
-                        }
-                        // '!'から始まる場合はエスケープモードに移行
-                        else if args[0].starts_with('!') {
-                            let separate_flg: bool = args[0].len() == 1;
-                            if separate_flg {
-                                args.remove(0);
-                            }
-                            // イテレータの最初を抜き出す
-                            let cmd_with_bang = args.remove(0);
-                            // '!'を除去
-                            let tmp_cmd = if !separate_flg {
-                                &cmd_with_bang[1..]
-                            } else {
-                                cmd_with_bang.as_str()
-                            };
-
-                            execute_child_process(tmp_cmd, args);
-                        } else if args[0] == "cd" {
-                            match args.get(1) {
-                                Some(path) => {
-                                    // ディレクトリ移動を実行
-                                    if let Err(e) = env::set_current_dir(path) {
-                                        // 指定したディレクトリがなかった場合、警告が表示される
-                                        eprintln!("Failed to change directory: {}", e);
-                                    }
-                                }
-                                None => {
-                                    // 引数がないと警告が表示される
-                                    eprintln!("Usage: cd <PATH>");
-                                }
-                            }
-                        } else {
-                            execute_child_process(target_cmd, args);
-                        }
-                    }
-                    Err(e) => eprintln!("Error parsing command: {}", e),
-                }
+                handle_command(line, target_cmd);
             }
             // Ctrl+C, Ctrl+D で終了した場合
             Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => {
@@ -196,11 +232,10 @@ fn main() {
     }
 
     let target_cmd = &args[1];
-    let base_path = env::current_dir().unwrap();
-    let base_path = base_path.to_str().unwrap();
+    let base_path = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
 
     // REPLを実行し、エラーがあれば表示して終了コード1で終わる
-    if let Err(e) = run_repl(target_cmd, base_path) {
+    if let Err(e) = run_repl(target_cmd, &base_path) {
         eprintln!("Application error: {}", e);
         process::exit(1);
     }
