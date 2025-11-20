@@ -129,6 +129,12 @@ fn run_repl(target_cmd: &str) -> Result<()> {
                             };
 
                             execute_child_process(tmp_cmd, args);
+                        } else if args[0] == "cd" {
+                            let target_path = args.get(1).expect("Usage: cd <PATH>");
+                            match env::set_current_dir(&target_path) {
+                            	Ok(()) => {},
+                             	Err(_) => eprintln!("Not found such as path."),
+                            }
                         } else {
                             execute_child_process(target_cmd, args);
                         }
