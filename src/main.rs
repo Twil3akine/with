@@ -18,6 +18,7 @@ use std::{
     env,
     eprintln,
     format,
+    option::Option::None,
     println,
     process,
     result::Result::Ok,
@@ -130,10 +131,18 @@ fn run_repl(target_cmd: &str) -> Result<()> {
 
                             execute_child_process(tmp_cmd, args);
                         } else if args[0] == "cd" {
-                            let target_path = args.get(1).expect("Usage: cd <PATH>");
-                            match env::set_current_dir(&target_path) {
-                            	Ok(()) => {},
-                             	Err(_) => eprintln!("Not found such as path."),
+                            match args.get(1) {
+                                Some(path) => {
+                                    // ディレクトリ移動を実行
+                                    if let Err(e) = env::set_current_dir(path) {
+                                        // 指定したディレクトリがなかった場合、警告が表示される
+                                        eprintln!("Failed to change directory: {}", e);
+                                    }
+                                }
+                                None => {
+                                    // 引数がないと警告が表示される
+                                    eprintln!("Usage: cd <PATH>");
+                                }
                             }
                         } else {
                             execute_child_process(target_cmd, args);
