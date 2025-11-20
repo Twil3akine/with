@@ -137,6 +137,9 @@ fn run_repl(target_cmd: &str) -> Result<()> {
 
 // --- エントリーポイント ---
 fn main() {
+	// Rustylineの入力待ち中のCtrl+Cは、Rustyline側が別途ハンドリングしてくれます。
+    ctrlc::set_handler(|| {}).expect("Error setting Ctrl-C handler");
+    
     // コマンドライン引数を取得
     let args: Vec<String> = env::args().collect::<Vec<String>>();
 

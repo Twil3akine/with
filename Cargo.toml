@@ -8,5 +8,6 @@ license = "MIT"
 repository = "https://github.com/twil3akine/with"
 
 [dependencies]
+ctrlc = "3.5.1"
 rustyline = { version = "17.0.2", features = ["derive"] }
 shell-words = "1.1.0"
