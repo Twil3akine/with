@@ -1,5 +1,0 @@
-# Nightly機能を利用可能にする
-unstable_features = true
-
-# 縦に並べる
-imports_layout = "Vertical"
