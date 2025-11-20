@@ -1,27 +1,10 @@
 use rustyline::{
-    error::ReadlineError,
-    highlight::Highlighter,
-    Cmd,
-    Completer,
-    Editor,
-    Helper,
-    Hinter,
-    KeyCode,
-    Modifiers,
-    Movement,
-    Result,
-    Validator,
+    Cmd, Completer, Editor, Helper, Hinter, KeyCode, Modifiers, Movement, Result, Validator,
+    error::ReadlineError, highlight::Highlighter,
 };
 use shell_words;
 use std::{
-    borrow::Cow,
-    env,
-    eprintln,
-    format,
-    option::Option::None,
-    println,
-    process,
-    result::Result::Ok,
+    borrow::Cow, env, eprintln, format, option::Option::None, println, process, result::Result::Ok,
 };
 
 // --- 定数定義 ---
@@ -147,7 +130,7 @@ fn run_repl(target_cmd: &str, base_path: &str) -> Result<()> {
                         }
                         // '!'から始まる場合はエスケープモードに移行
                         else if args[0].starts_with('!') {
-                        	let separate_flg: bool = args[0].len() == 1;
+                            let separate_flg: bool = args[0].len() == 1;
                             if separate_flg {
                                 args.remove(0);
                             }
