@@ -27,10 +27,12 @@ use std::{
 // --- 定数定義 ---
 // 終了判定に使うコマンドのリスト
 const EXIT_COMMANDS: [&str; 4] = ["e", "q", "exit", "quit"];
-// プロンプトの色付け用 (シアン)
+// プロンプトの色付け用
+const COLOR_GREEN: &str = "\x1b[32m";
 const COLOR_CYAN: &str = "\x1b[36m";
-// 色のリセット用 (デフォルト色に戻す)
-const COLOR_DEFAULT: &str = "\x1b[39m";
+const STYLE_BOLD: &str = "\x1b[1m";
+
+const STYLE_RESET: &str = "\x1b[0m"; // 色も太字も全部リセット
 
 // --- Rustylineのヘルパー設定 ---
 #[derive(Helper, Completer, Hinter, Validator)]
@@ -43,17 +45,35 @@ impl Highlighter for MyHelper {
         prompt: &'p str,
         _default: bool,
     ) -> Cow<'b, str> {
-        if prompt.contains(">") {
-            // ">" を "（デフォルト色）>" に置換して、入力文字が水色にならないようにする
-            let styled = prompt.replace(">", &format!("{}>", COLOR_DEFAULT));
-            // プロンプト全体を水色（CYAN）で囲む
-            Cow::Owned(format!("{}{}", COLOR_CYAN, styled))
-        } else {
-            Cow::Borrowed(prompt)
+        // プロンプトが "cmd (dir)> " の形かチェックして色付け
+        // "(" と ")> " で分割して場所を特定します
+        if let Some(start_idx) = prompt.find(" [") {
+            if let Some(end_idx) = prompt.find("]> ") {
+                // パーツを切り出し
+                let cmd_part = &prompt[0..start_idx]; // "cargo"
+                let dir_part = &prompt[start_idx + 2..end_idx]; // "with" (" (" の2文字分ずらす)
+
+                let styled = format!(
+                    "{}{}{}{} [{}{}{}]{}{}> ",
+                    STYLE_BOLD,
+                    COLOR_CYAN,
+                    cmd_part,
+                    STYLE_RESET, // コマンド
+                    COLOR_GREEN,
+                    dir_part,
+                    STYLE_RESET, // ディレクトリ
+                    STYLE_BOLD,  // 最後の矢印を太字に
+                    STYLE_RESET  // リセット
+                );
+
+                return Cow::Owned(styled);
+            }
         }
+
+        // パースできなかったらそのまま返す
+        Cow::Borrowed(prompt)
     }
 }
-
 // --- コマンド実行処理 ---
 /// 指定されたプログラムを子プロセスとして実行する関数
 /// 失敗しても親プロセス（このREPL）はクラッシュさせない
@@ -78,7 +98,7 @@ fn execute_child_process(program: &str, args: Vec<String>) {
 
 // --- メインループ ---
 /// REPL（対話型ループ）のメインロジック
-fn run_repl(target_cmd: &str) -> Result<()> {
+fn run_repl(target_cmd: &str, base_path: &str) -> Result<()> {
     // エディタの初期化
     let mut rl = Editor::<MyHelper, rustyline::history::DefaultHistory>::new()?;
     rl.set_helper(Some(MyHelper {}));
@@ -89,10 +109,18 @@ fn run_repl(target_cmd: &str) -> Result<()> {
         Cmd::Kill(Movement::WholeLine),
     );
 
-    // プロンプトの文字列を作成（例: "git> "）
-    let prompt = format!("{}> ", target_cmd);
-
     loop {
+        // 現在のカレントディレクトリを取得
+        let current_path = env::current_dir().unwrap();
+        let dir_name = if current_path.to_str().unwrap() == base_path {
+            "."
+        } else {
+            current_path.file_stem().unwrap().to_str().unwrap()
+        };
+
+        // プロンプトの文字列を作成（例: "git> "）
+        let prompt = format!("{} [{}]> ", target_cmd, dir_name);
+
         // ユーザーの入力を待機
         let readline = rl.readline(&format!("{}", prompt));
 
@@ -182,9 +210,11 @@ fn main() {
     }
 
     let target_cmd = &args[1];
+    let base_path = env::current_dir().unwrap();
+    let base_path = base_path.to_str().unwrap();
 
     // REPLを実行し、エラーがあれば表示して終了コード1で終わる
-    if let Err(e) = run_repl(target_cmd) {
+    if let Err(e) = run_repl(target_cmd, base_path) {
         eprintln!("Application error: {}", e);
         process::exit(1);
     }
