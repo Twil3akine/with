@@ -21,7 +21,6 @@ use std::{
     println,
     process,
     result::Result::Ok,
-    string::String,
 };
 
 // --- 定数定義 ---
@@ -113,7 +112,27 @@ fn run_repl(target_cmd: &str) -> Result<()> {
 
                 // 入力された文字列をスペース区切りでパース（引用符などを考慮）して実行
                 match shell_words::split(line) {
-                    Ok(args) => execute_child_process(target_cmd, args),
+                    Ok(mut args) => {
+                        // '!'から始まる場合はエスケープモードに移行
+                        let separate_flg: bool = args[0].len() == 1;
+                        if args[0].starts_with('!') {
+                            if separate_flg {
+                                args.remove(0);
+                            }
+                            // イテレータの最初を抜き出す
+                            let cmd_with_bang = args.remove(0);
+                            // '!'を除去
+                            let tmp_cmd = if !separate_flg {
+                                &cmd_with_bang[1..]
+                            } else {
+                                cmd_with_bang.as_str()
+                            };
+
+                            execute_child_process(tmp_cmd, args);
+                        } else {
+                            execute_child_process(target_cmd, args);
+                        }
+                    }
                     Err(e) => eprintln!("Error parsing command: {}", e),
                 }
             }
