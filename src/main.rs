@@ -1,67 +1,20 @@
-use rustyline::{
-    Cmd, Completer, Editor, Helper, Hinter, KeyCode, Modifiers, Movement, Result, Validator,
-    error::ReadlineError, highlight::Highlighter,
-};
+mod with_helper;
+
+use rustyline::{Cmd, Editor, KeyCode, Modifiers, Movement, Result, error::ReadlineError};
 use shell_words;
 use std::{
-    borrow::Cow,
     env, eprintln, format,
     option::Option::None,
     path::{Path, PathBuf},
     println, process,
     result::Result::Ok,
 };
+use with_helper::WithHelper;
 
 // --- 定数定義 ---
 // 終了判定に使うコマンドのリスト
 const EXIT_COMMANDS: [&str; 4] = ["e", "q", "exit", "quit"];
-// プロンプトの色付け用
-const COLOR_GREEN: &str = "\x1b[32m";
-const COLOR_CYAN: &str = "\x1b[36m";
-const STYLE_BOLD: &str = "\x1b[1m";
-const STYLE_RESET: &str = "\x1b[0m"; // 色も太字も全部リセット
 
-// プロンプトの装飾用マーカー（Highlighterでの検知にも使用）
-const PROMPT_OPEN: &str = " [";
-const PROMPT_CLOSE: &str = "]> ";
-
-// --- Rustylineのヘルパー設定 ---
-#[derive(Helper, Completer, Hinter, Validator)]
-struct MyHelper {}
-
-// プロンプトの色付けロジックを実装
-impl Highlighter for MyHelper {
-    fn highlight_prompt<'b, 's: 'b, 'p: 'b>(
-        &'s self,
-        prompt: &'p str,
-        _default: bool,
-    ) -> Cow<'b, str> {
-        // プロンプトが "cmd (dir)> " の形かチェックして色付け
-        // "(" と ")> " で分割して場所を特定します
-        if let (Some(start), Some(end)) = (prompt.find(PROMPT_OPEN), prompt.find(PROMPT_CLOSE)) {
-            let cmd_part = &prompt[0..start];
-            // PROMPT_OPENの長さ分ずらす
-            let dir_part = &prompt[start + PROMPT_OPEN.len()..end];
-
-            let styled = format!(
-                "{}{}{}{} [{}{}{}]{}{}> ",
-                STYLE_BOLD,
-                COLOR_CYAN,
-                cmd_part,
-                STYLE_RESET, // Cmd
-                COLOR_GREEN,
-                dir_part,
-                STYLE_RESET, // Dir
-                STYLE_BOLD,  // Arrow
-                STYLE_RESET
-            );
-            return Cow::Owned(styled);
-        }
-
-        // パースできなかったらそのまま返す
-        Cow::Borrowed(prompt)
-    }
-}
 // --- コマンド実行処理 ---
 /// 指定されたプログラムを子プロセスとして実行する関数
 /// 失敗しても親プロセス（このREPL）はクラッシュさせない
@@ -166,8 +119,8 @@ fn handle_command(line: &str, target_cmd: &str) {
 /// REPL（対話型ループ）のメインロジック
 fn run_repl(target_cmd: &str, base_path: &Path) -> Result<()> {
     // エディタの初期化
-    let mut rl = Editor::<MyHelper, rustyline::history::DefaultHistory>::new()?;
-    rl.set_helper(Some(MyHelper {}));
+    let mut rl = Editor::<WithHelper, rustyline::history::DefaultHistory>::new()?;
+    rl.set_helper(Some(WithHelper {}));
 
     // キーバインド設定: Escキーで入力行を全削除（Windowsライクな挙動）
     rl.bind_sequence(
