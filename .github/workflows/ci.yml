@@ -1,0 +1,38 @@
+name: CI
+
+on:
+    # main または dev にマージされたときだけ走る
+    push:
+        branches: ["main", "dev", "actions"]
+    # PRを出している間は毎回走る
+    pull_request:
+
+env:
+    CARGO_TERM_COLOR: always
+
+jobs:
+    test:
+        name: Test (Linux only)
+        # 普段は Ubuntu だけで十分！Windows/Mac はリリースの時だけやる
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up Rust
+              uses: dtolnay/rust-toolchain@stable
+              with:
+                  components: clippy, rustfmt
+
+            - name: Cache dependencies
+              uses: swatinem/rust-cache@v2
+
+            - name: Check formatting
+              run: cargo fmt -- --check
+
+            - name: Lint with clippy
+              run: cargo clippy -- -D warnings
+
+            # ここで走るのは「Debugビルド」でのテストです（Releaseビルドではないので速い）
+            - name: Run tests
+              run: cargo test --verbose
