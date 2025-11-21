@@ -46,10 +46,7 @@ pub fn parse_cmd(line: &str, target_cmd: Option<&str>) -> CommandAction {
         let program;
         if first_arg.len() > 1 {
             // "!ls" -> "ls"
-            program = first_arg[1..].to_string();
-            // args[0] は "!ls" なので、これをプログラム名として使うわけにはいかないが、
-            // execute用に args 全体を再構成する必要がある。
-            // ここではシンプルに「プログラム名」と「残りの引数」を抽出する。
+            program = first_arg.to_string();
             args.remove(0);
         } else {
             // "! ls" -> "ls" (先頭要素 "!" を捨てる)
