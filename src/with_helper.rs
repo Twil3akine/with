@@ -9,11 +9,7 @@ pub struct WithHelper {}
 const COLOR_GREEN: &str = "\x1b[32m";
 const COLOR_CYAN: &str = "\x1b[36m";
 const STYLE_BOLD: &str = "\x1b[1m";
-const STYLE_RESET: &str = "\x1b[0m"; // 色も太字も全部リセット
-
-// プロンプトの装飾用マーカー（Highlighterでの検知にも使用）
-const PROMPT_OPEN: &str = " [";
-const PROMPT_CLOSE: &str = "]> ";
+const STYLE_RESET: &str = "\x1b[0m";
 
 // プロンプトの色付けロジックを実装
 impl Highlighter for WithHelper {
@@ -22,26 +18,48 @@ impl Highlighter for WithHelper {
         prompt: &'p str,
         _default: bool,
     ) -> Cow<'b, str> {
-        // プロンプトが "cmd (dir)> " の形かチェックして色付け
-        // "(" と ")> " で分割して場所を特定します
-        if let (Some(start), Some(end)) = (prompt.find(PROMPT_OPEN), prompt.find(PROMPT_CLOSE)) {
-            let cmd_part = &prompt[0..start];
-            // PROMPT_OPENの長さ分ずらす
-            let dir_part = &prompt[start + PROMPT_OPEN.len()..end];
+        // プロンプトの末尾 "> " を探す
+        if let Some(end_arrow) = prompt.rfind("> ") {
+            // パターン1: "(dir) cmd> " の場合（先頭が '(' で始まる）
+            if prompt.starts_with('(') {
+                if let Some(close_paren) = prompt.find(") ") {
+                    // (dir) 部分
+                    let dir_part = &prompt[1..close_paren];
+                    // cmd 部分 ( ") " の後ろから "> " の前まで)
+                    // start: close_paren + 2 (つまり ") "の長さ)
+                    let cmd_start = close_paren + 2;
+                    let cmd_part = &prompt[cmd_start..end_arrow];
 
-            let styled = format!(
-                "{}{}{}{} [{}{}{}]{}{}> ",
-                STYLE_BOLD,
-                COLOR_CYAN,
-                cmd_part,
-                STYLE_RESET, // Cmd
-                COLOR_GREEN,
-                dir_part,
-                STYLE_RESET, // Dir
-                STYLE_BOLD,  // Arrow
-                STYLE_RESET
-            );
-            return Cow::Owned(styled);
+                    let styled = format!(
+                        "{}({}{}{}) {}{}{}{}{}{}> ",
+                        STYLE_BOLD,  // (
+                        COLOR_GREEN, // dir color
+                        dir_part,
+                        STYLE_RESET, // dir color reset
+                        STYLE_BOLD,  // )
+                        COLOR_CYAN,  // cmd color
+                        cmd_part,
+                        STYLE_RESET, // cmd color reset
+                        STYLE_BOLD,  // >
+                        STYLE_RESET  // reset all
+                    );
+                    return Cow::Owned(styled);
+                }
+            }
+            // パターン2: "cmd> " の場合 (ディレクトリ表示なし)
+            else {
+                let cmd_part = &prompt[0..end_arrow];
+                let styled = format!(
+                    "{}{}{}{}{}{}> ",
+                    STYLE_BOLD, // cmd style start
+                    COLOR_CYAN, // cmd color
+                    cmd_part,
+                    STYLE_RESET, // cmd color reset
+                    STYLE_BOLD,  // >
+                    STYLE_RESET  // reset all
+                );
+                return Cow::Owned(styled);
+            }
         }
 
         // パースできなかったらそのまま返す
