@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    # "v"で始まるタグ（例: v0.3.0）がプッシュされた時だけ動く
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build-and-release:
+    name: Release for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write # リリースを作成する権限
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target_file: with
+            final_name: with-linux
+          - os: macos-latest
+            target_file: with
+            final_name: with-macos
+          - os: windows-latest
+            target_file: with.exe
+            final_name: with-windows.exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: swatinem/rust-cache@v2
+
+      # 安全のためリリース前にもテストを実行
+      - name: Run tests
+        run: cargo test --verbose
+
+      - name: Build Release
+        run: cargo build --release
+
+      # OSごとにファイル名を整える
+      - name: Rename binary
+        shell: bash
+        run: |
+          cp target/release/${{ matrix.target_file }} target/release/${{ matrix.final_name }}
+
+      # GitHub Releasesページを作成し、ファイルをアップロード
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: target/release/${{ matrix.final_name }}
+          generate_release_notes: true # 自動で変更履歴（リリースノート）を作ってくれる
