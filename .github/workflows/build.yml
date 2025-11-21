@@ -1,49 +1,49 @@
 name: Cross Platform Build
 
 on:
-  push:
-    branches: [ "main", "dev", "actions" ]
-  pull_request:
+    push:
+        branches: ["main", "dev", "actions"]
+    pull_request:
 
 env:
-  CARGO_TERM_COLOR: always
+    CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target_file: with       # 生成されるファイル名
-            final_name: with-linux  # リネーム後の名前
-          - os: macos-latest
-            target_file: with
-            final_name: with-macos
-          - os: windows-latest
-            target_file: with.exe
-            final_name: with-windows.exe
+    build:
+        strategy:
+            matrix:
+                include:
+                    - os: ubuntu-latest
+                      target_file: with # 生成されるファイル名
+                      final_name: with-linux # リネーム後の名前
+                    - os: macos-latest
+                      target_file: with
+                      final_name: with-macos
+                    - os: windows-latest
+                      target_file: with.exe
+                      final_name: with-windows.exe
 
-    runs-on: ${{ matrix.os }}
+        runs-on: ${{ matrix.os }}
 
-    steps:
-    - uses: actions/checkout@v4
+        steps:
+            - uses: actions/checkout@v4
 
-    - name: Set up Rust
-      uses: dtolnay/rust-toolchain@stable
+            - name: Set up Rust
+              uses: dtolnay/rust-toolchain@stable
 
-    - name: Build
-      run: cargo build --release
+            - name: Build
+              run: cargo build --release
 
-    # ここでリネームを実行します
-    # shell: bash を指定することで、Windowsでもcpコマンドが使えるようにしています
-    - name: Rename binary
-      shell: bash
-      run: |
-        cp target/release/${{ matrix.target_file }} target/release/${{ matrix.final_name }}
+            # ここでリネームを実行します
+            # shell: bash を指定することで、Windowsでもcpコマンドが使えるようにしています
+            - name: Rename binary
+              shell: bash
+              run: |
+                  cp target/release/${{ matrix.target_file }} target/release/${{ matrix.final_name }}
 
-    # リネームしたファイルをアップロードします
-    - name: Upload Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ matrix.final_name }}
-        path: target/release/${{ matrix.final_name }}
+            # リネームしたファイルをアップロードします
+            - name: Upload Artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: ${{ matrix.final_name }}
+                  path: target/release/${{ matrix.final_name }}

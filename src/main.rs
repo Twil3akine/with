@@ -1,8 +1,8 @@
 mod parser;
 mod with_helper;
 
-use rustyline::{Cmd, Editor, KeyCode, Modifiers, Movement, Result, error::ReadlineError};
 use parser::*;
+use rustyline::{Cmd, Editor, KeyCode, Modifiers, Movement, Result, error::ReadlineError};
 use std::{
     env, eprintln, format,
     option::Option::{None, Some},
@@ -74,20 +74,20 @@ fn run_repl(target_cmd: Option<&str>, base_path: &Path) -> Result<()> {
                     rl.add_history_entry(line)?;
                 }
 
-                let action = parse_cmd(&line, target_cmd);
+                let action = parse_cmd(line, target_cmd);
 
                 match action {
                     CommandAction::Execute { program, args } => {
                         execute_child_process(&program, args);
                     }
-                    CommandAction::ChangeDirectory(target) => match target {
-                        Some(path) => {
-                            if let Err(e) = env::set_current_dir(&path) {
-                                eprintln!("Failed to change directory: {}", e);
-                            }
+                    CommandAction::ChangeDirectory(target) => {
+                        if let Some(path) = target
+                            && let Err(e) = env::set_current_dir(&path)
+                        {
+                            eprintln!("Failed to change directory: {}", e);
                         }
-                        None => {}
-                    },
+                    }
+
                     CommandAction::Exit => break,
                     CommandAction::DoNothing => {}
                     CommandAction::Error(msg) => eprintln!("Error: {}", msg),

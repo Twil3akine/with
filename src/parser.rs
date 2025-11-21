@@ -1,4 +1,3 @@
-use shell_words;
 use std::{
     option::Option::{None, Some},
     path::Path,
@@ -43,7 +42,7 @@ pub fn parse_cmd(line: &str, target_cmd: Option<&str>) -> CommandAction {
     let first_arg = &args[0];
 
     // 1. 脱出コマンド (!cmd)
-    if first_arg.starts_with('!') {
+    if let Some(first_arg) = first_arg.strip_prefix('!') {
         let program;
         if first_arg.len() > 1 {
             // "!ls" -> "ls"
@@ -73,7 +72,7 @@ pub fn parse_cmd(line: &str, target_cmd: Option<&str>) -> CommandAction {
         } else {
             None
         };
-        return CommandAction::ChangeDirectory(target);
+        CommandAction::ChangeDirectory(target)
     }
     // 3. 通常実行 (Target Command)
     else {
