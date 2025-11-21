@@ -1,8 +1,8 @@
-mod scripts;
+mod parser;
 mod with_helper;
 
 use rustyline::{Cmd, Editor, KeyCode, Modifiers, Movement, Result, error::ReadlineError};
-use scripts::*;
+use parser::*;
 use std::{
     env, eprintln, format,
     option::Option::{None, Some},
