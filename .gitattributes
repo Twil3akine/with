@@ -1,0 +1,6 @@
+# すべてのテキストファイルをLF（Linux形式）で統一する
+* text=auto eol=lf
+
+# WindowsのバッチファイルだけはCRLFを許可する（必要なら）
+*.bat text eol=crlf
+*.cmd text eol=crlf
