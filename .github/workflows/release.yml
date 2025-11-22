@@ -1,56 +1,66 @@
 name: Release
 
 on:
-  push:
-    # "v"で始まるタグ（例: v0.3.0）がプッシュされた時だけ動く
-    tags:
-      - "v*.*.*"
+    push:
+        tags:
+            - "v*.*.*"
 
 jobs:
-  build-and-release:
-    name: Release for ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    permissions:
-      contents: write # リリースを作成する権限
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target_file: with
-            final_name: with-linux
-          - os: macos-latest
-            target_file: with
-            final_name: with-macos
-          - os: windows-latest
-            target_file: with.exe
-            final_name: with-windows.exe
+    build-and-release:
+        name: Release for ${{ matrix.os }}
+        runs-on: ${{ matrix.os }}
+        permissions:
+            contents: write
+        strategy:
+            matrix:
+                include:
+                    # Linux: tar.gz
+                    - os: ubuntu-latest
+                      target_file: with
+                      asset_name: with-linux.tar.gz
+                      command: tar -czf with-linux.tar.gz with
 
-    steps:
-      - uses: actions/checkout@v4
+                    # macOS: tar.gz
+                    - os: macos-latest
+                      target_file: with
+                      asset_name: with-macos.tar.gz
+                      command: tar -czf with-macos.tar.gz with
 
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+                    # Windows: zip (PowerShellを使うためコマンドを分けるか、7zを使う)
+                    # ここでは汎用的に使える 7z (Windowsランナーにプリインストール済) を使用
+                    - os: windows-latest
+                      target_file: with.exe
+                      asset_name: with-windows.zip
+                      command: 7z a with-windows.zip with.exe
 
-      - name: Cache dependencies
-        uses: swatinem/rust-cache@v2
+        steps:
+            - uses: actions/checkout@v4
 
-      # 安全のためリリース前にもテストを実行
-      - name: Run tests
-        run: cargo test --verbose
+            - name: Set up Rust
+              uses: dtolnay/rust-toolchain@stable
 
-      - name: Build Release
-        run: cargo build --release
+            - name: Cache dependencies
+              uses: swatinem/rust-cache@v2
 
-      # OSごとにファイル名を整える
-      - name: Rename binary
-        shell: bash
-        run: |
-          cp target/release/${{ matrix.target_file }} target/release/${{ matrix.final_name }}
+            - name: Run tests
+              run: cargo test --verbose
 
-      # GitHub Releasesページを作成し、ファイルをアップロード
-      - name: Release
-        uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: target/release/${{ matrix.final_name }}
-          generate_release_notes: true # 自動で変更履歴（リリースノート）を作ってくれる
+            - name: Build Release
+              run: cargo build --release
+
+            # バイナリがあるディレクトリに移動して圧縮コマンドを実行
+            # (パス問題を避けるため cd してから実行するのが確実です)
+            - name: Compress binary
+              shell: bash
+              run: |
+                  cd target/release
+                  ${{ matrix.command }}
+
+            - name: Release
+              uses: softprops/action-gh-release@v1
+              if: startsWith(github.ref, 'refs/tags/')
+              with:
+                  # 圧縮したファイルを指定
+                  files: target/release/${{ matrix.asset_name }}
+                  generate_release_notes: true
+                  draft: true
