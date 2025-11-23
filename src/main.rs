@@ -4,7 +4,9 @@ mod with_helper;
 
 use context::*;
 use parser::*;
-use rustyline::{Cmd, Editor, KeyCode, Modifiers, Movement, Result, error::ReadlineError};
+use rustyline::{
+    Cmd, CompletionType, Config, Editor, KeyCode, Modifiers, Movement, Result, error::ReadlineError,
+};
 use std::{
     env, eprintln, format,
     option::Option::{None, Some},
@@ -39,9 +41,16 @@ fn execute_child_process(program: &str, args: Vec<String>) {
 // --- メインループ ---
 /// REPL（対話型ループ）のメインロジック
 fn run_repl(target_cmd: Option<&str>, base_path: &Path) -> Result<()> {
+    let config = Config::builder()
+        .history_ignore_space(true)
+        .completion_type(CompletionType::List)
+        .build();
+
     // エディタの初期化
-    let mut rl = Editor::<WithHelper, rustyline::history::DefaultHistory>::new()?;
-    rl.set_helper(Some(WithHelper {}));
+    let mut rl = Editor::<WithHelper, rustyline::history::DefaultHistory>::with_config(config)?;
+    rl.set_helper(Some(WithHelper {
+        completer: rustyline::completion::FilenameCompleter::new(),
+    }));
 
     // キーバインド設定: Escキーで入力行を全削除（Windowsライクな挙動）
     rl.bind_sequence(
@@ -126,7 +135,7 @@ fn main() {
 
     // 引数が足りない場合（自分自身 + コマンド名 の2つ必要）
     if args.len() > 2 {
-        eprintln!("Usage: with <COMMAND>");
+        eprintln!("Usage: with none | <COMMAND>");
         process::exit(1);
     }
 
