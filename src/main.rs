@@ -4,13 +4,48 @@ mod with_helper;
 use parser::*;
 use rustyline::{Cmd, Editor, KeyCode, Modifiers, Movement, Result, error::ReadlineError};
 use std::{
-    env, eprintln, format,
+    env, eprintln, format, fs,
     option::Option::{None, Some},
     path::{Path, PathBuf},
     println, process,
     result::Result::Ok,
 };
 use with_helper::WithHelper;
+
+// --- Git branch 取得ロジック---
+/// カレントディレクトリから遡って .git/HEAD を探し、ブランチ名を返す
+fn get_git_branch(cwd: &Path) -> Option<String> {
+    let mut current = cwd;
+
+    loop {
+        let git_dir = current.join(".git");
+        let head_path = git_dir.join("HEAD");
+
+        if head_path.exists() {
+            // HEADファイルを読み込む
+            if let Ok(content) = fs::read_to_string(head_path) {
+                let content = content.trim();
+
+                // "ref: refs/heads/main" の形式なら "main" を返す
+                if let Some(branch) = content.strip_prefix("ref: refs/heads/") {
+                    return Some(branch.to_string());
+                }
+
+                // Detached HEAD (ハッシュ値) の場合は先頭7文字を返す
+                if content.len() >= 7 {
+                    return Some(content[..7].to_string());
+                }
+            }
+            return None;
+        }
+
+        match current.parent() {
+            Some(p) => current = p,
+            None => break,
+        }
+    }
+    None
+}
 
 // --- コマンド実行処理 ---
 /// 指定されたプログラムを子プロセスとして実行する関数
@@ -51,15 +86,20 @@ fn run_repl(target_cmd: Option<&str>, base_path: &Path) -> Result<()> {
         let current_dir = env::current_dir().unwrap_or_default();
         let dir_name_opt = resolve_display_dir(&current_dir, base_path);
 
-        // プロンプトの文字列を作成（例: "git> "）
-        let prompt = match (target_cmd, dir_name_opt) {
-            // コマンドあり、ディレクトリ差分あり -> (dir) cmd>
-            (Some(cmd), Some(dir)) => format!("({}) {}> ", dir, cmd),
-            // コマンドあり、ディレクトリ差分なし -> cmd>
+        let branch_opt = get_git_branch(&current_dir);
+
+        // ディレクトリ情報とブランチ情報を結合する
+        let context_info = match (dir_name_opt, branch_opt) {
+            (Some(dir), Some(branch)) => Some(format!("{}: {}", dir, branch)),
+            (Some(dir), None) => Some(dir),
+            (None, Some(branch)) => Some(branch), // dir変化なしでもbranchがあれば出す場合
+            (None, None) => None,
+        };
+
+        let prompt = match (target_cmd, context_info) {
+            (Some(cmd), Some(info)) => format!("({}) {}> ", info, cmd),
             (Some(cmd), None) => format!("{}> ", cmd),
-            // コマンドなし(with単体起動)、ディレクトリ差分あり -> (dir)>
-            (None, Some(dir)) => format!("({}) > ", dir),
-            // 両方なし -> >
+            (None, Some(info)) => format!("({}) > ", info),
             (None, None) => "> ".to_string(),
         };
 

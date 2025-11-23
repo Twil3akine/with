@@ -90,7 +90,7 @@ pub fn parse_cmd(line: &str, target_cmd: Option<&str>) -> CommandAction {
 /// current: 現在のディレクトリ, base: 起動時のディレクトリ
 pub fn resolve_display_dir(current: &Path, base: &Path) -> Option<String> {
     if current == base {
-        None
+    	Some(".".to_string())
     } else {
         Some(
             current
