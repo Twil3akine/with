@@ -24,7 +24,7 @@ fn get_git_branch(cwd: &Path) -> Option<String> {
         if head_path.exists() {
             // HEADファイルを読み込む
             if let Ok(content) = fs::read_to_string(head_path) {
-                let content = content.trim();
+                let content: &str = content.trim();
 
                 // "ref: refs/heads/main" の形式なら "main" を返す
                 if let Some(branch) = content.strip_prefix("ref: refs/heads/") {
