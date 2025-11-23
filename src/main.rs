@@ -1,6 +1,8 @@
+mod context;
 mod parser;
 mod with_helper;
 
+use context::*;
 use parser::*;
 use rustyline::{Cmd, Editor, KeyCode, Modifiers, Movement, Result, error::ReadlineError};
 use std::{
@@ -51,15 +53,20 @@ fn run_repl(target_cmd: Option<&str>, base_path: &Path) -> Result<()> {
         let current_dir = env::current_dir().unwrap_or_default();
         let dir_name_opt = resolve_display_dir(&current_dir, base_path);
 
-        // プロンプトの文字列を作成（例: "git> "）
-        let prompt = match (target_cmd, dir_name_opt) {
-            // コマンドあり、ディレクトリ差分あり -> (dir) cmd>
-            (Some(cmd), Some(dir)) => format!("({}) {}> ", dir, cmd),
-            // コマンドあり、ディレクトリ差分なし -> cmd>
+        let branch_opt = get_git_branch(&current_dir);
+
+        // ディレクトリ情報とブランチ情報を結合する
+        let context_info = match (dir_name_opt, branch_opt) {
+            (Some(dir), Some(branch)) => Some(format!("{}: {}", dir, branch)),
+            (Some(dir), None) => Some(dir),
+            (None, Some(branch)) => Some(branch), // dir変化なしでもbranchがあれば出す場合
+            (None, None) => None,
+        };
+
+        let prompt = match (target_cmd, context_info) {
+            (Some(cmd), Some(info)) => format!("({}) {}> ", info, cmd),
             (Some(cmd), None) => format!("{}> ", cmd),
-            // コマンドなし(with単体起動)、ディレクトリ差分あり -> (dir)>
-            (None, Some(dir)) => format!("({}) > ", dir),
-            // 両方なし -> >
+            (None, Some(info)) => format!("({}) > ", info),
             (None, None) => "> ".to_string(),
         };
 

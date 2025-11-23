@@ -1,7 +1,4 @@
-use std::{
-    option::Option::{None, Some},
-    path::Path,
-};
+use std::option::Option::{None, Some};
 
 #[derive(Debug, PartialEq)]
 pub enum CommandAction {
@@ -83,22 +80,6 @@ pub fn parse_cmd(line: &str, target_cmd: Option<&str>) -> CommandAction {
                 CommandAction::Execute { program, args }
             }
         }
-    }
-}
-
-/// ディレクトリ表示名の解決ロジック
-/// current: 現在のディレクトリ, base: 起動時のディレクトリ
-pub fn resolve_display_dir(current: &Path, base: &Path) -> Option<String> {
-    if current == base {
-        None
-    } else {
-        Some(
-            current
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or(".")
-                .to_string(),
-        )
     }
 }
 
@@ -198,27 +179,5 @@ mod tests {
         // input: "" (空行)
         let action = parse_cmd("", None);
         assert_eq!(action, CommandAction::DoNothing);
-    }
-
-    // --- resolve_display_dir のテスト ---
-
-    #[test]
-    fn test_display_dir_same() {
-        let base = std::path::PathBuf::from("/home/user/project");
-        let current = std::path::PathBuf::from("/home/user/project");
-
-        assert_eq!(resolve_display_dir(&current, &base), None);
-    }
-
-    #[test]
-    fn test_display_dir_diff() {
-        let base = std::path::PathBuf::from("/home/user/project");
-        let current = std::path::PathBuf::from("/home/user/project/src");
-
-        // "src" が返るはず
-        assert_eq!(
-            resolve_display_dir(&current, &base),
-            Some("src".to_string())
-        );
     }
 }
