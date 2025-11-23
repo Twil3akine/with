@@ -13,6 +13,23 @@ use std::{
 use with_helper::WithHelper;
 
 // --- Git branch 取得ロジック---
+/// ファイルの中身からブランチ名またはハッシュを抽出する純粋関数
+fn parse_git_head(content: &str) -> Option<String> {
+    let content = content.trim();
+
+    // "ref: refs/heads/main" の形式なら "main" を返す
+    if let Some(branch) = content.strip_prefix("ref: refs/heads/") {
+        return Some(branch.to_string());
+    }
+
+    // Detached HEAD (ハッシュ値) の場合は先頭7文字を返す
+    if content.len() >= 7 {
+        return Some(content[..7].to_string());
+    }
+
+    None
+}
+
 /// カレントディレクトリから遡って .git/HEAD を探し、ブランチ名を返す
 fn get_git_branch(cwd: &Path) -> Option<String> {
     let mut current = cwd;
@@ -24,17 +41,7 @@ fn get_git_branch(cwd: &Path) -> Option<String> {
         if head_path.exists() {
             // HEADファイルを読み込む
             if let Ok(content) = fs::read_to_string(head_path) {
-                let content: &str = content.trim();
-
-                // "ref: refs/heads/main" の形式なら "main" を返す
-                if let Some(branch) = content.strip_prefix("ref: refs/heads/") {
-                    return Some(branch.to_string());
-                }
-
-                // Detached HEAD (ハッシュ値) の場合は先頭7文字を返す
-                if content.len() >= 7 {
-                    return Some(content[..7].to_string());
-                }
+                return parse_git_head(&content);
             }
             return None;
         }
