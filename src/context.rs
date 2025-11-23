@@ -101,4 +101,75 @@ mod tests {
         let content = "short";
         assert_eq!(parse_git_head(content), None);
     }
+
+    #[test]
+    fn test_parse_git_head_with_slashes() {
+        // ブランチ名にスラッシュが含まれる場合
+        // "ref: refs/heads/feature/new-ui" -> "feature/new-ui"
+        let content = "ref: refs/heads/feature/new-ui\n";
+        assert_eq!(parse_git_head(content), Some("feature/new-ui".to_string()));
+    }
+
+    #[test]
+    fn test_parse_git_head_whitespace_handling() {
+        // 前後に空白や改行があっても trim されて正しく動くか
+        let content = "   ref: refs/heads/dev   \n";
+        assert_eq!(parse_git_head(content), Some("dev".to_string()));
+    }
+
+    #[test]
+    fn test_parse_git_head_detached_exact_length() {
+        // ちょうど7文字のハッシュ値の場合
+        let content = "1234567";
+        assert_eq!(parse_git_head(content), Some("1234567".to_string()));
+    }
+
+    #[test]
+    fn test_parse_git_head_detached_too_short() {
+        // 7文字未満の場合は None になるべき
+        let content = "123456";
+        assert_eq!(parse_git_head(content), None);
+    }
+
+    #[test]
+    fn test_parse_git_head_empty() {
+        // 空文字の場合
+        let content = "";
+        assert_eq!(parse_git_head(content), None);
+    }
+
+    #[test]
+    fn test_display_dir_parent_of_base() {
+        // base より上の階層にいる場合
+        // base: /home/user/project
+        // current: /home/user
+        // -> "user" (現在のフォルダ名) が表示される仕様
+        let base = std::path::PathBuf::from("/home/user/project");
+        let current = std::path::PathBuf::from("/home/user");
+
+        assert_eq!(
+            resolve_display_dir(&current, &base),
+            Some("user".to_string())
+        );
+    }
+
+    #[test]
+    fn test_display_dir_root() {
+        // ルートディレクトリの場合
+        let base = std::path::PathBuf::from("/home/user/project");
+
+        // UNIX系なら "/"
+        #[cfg(unix)]
+        let current = std::path::PathBuf::from("/");
+
+        // Windowsなら "C:\" など
+        #[cfg(windows)]
+        let current = std::path::PathBuf::from("C:\\");
+
+        // ルートパスの file_name() は None を返すことがあるため、
+        // unwrap_or(".") が機能して "." などを返すか、
+        // 実際に返ってくる値を検証（環境依存の可能性があるため緩めにチェック）
+        let result = resolve_display_dir(&current, &base);
+        assert!(result.is_some());
+    }
 }

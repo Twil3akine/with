@@ -180,4 +180,67 @@ mod tests {
         let action = parse_cmd("", None);
         assert_eq!(action, CommandAction::DoNothing);
     }
+
+    #[test]
+    fn test_unclosed_quote() {
+        // クォートが閉じられていない場合のエラーハンドリング
+        // input: echo "hello
+        let action = parse_cmd("echo \"hello", None);
+        match action {
+            CommandAction::Error(_) => {} // OK (エラーになるべき)
+            _ => panic!("Expected Error due to unclosed quote, got {:?}", action),
+        }
+    }
+
+    #[test]
+    fn test_quoted_arguments_with_spaces() {
+        // スペースを含む引数が正しく1つの引数として扱われるか
+        // with git
+        // input: commit -m "fix bug"
+        let action = parse_cmd("commit -m \"fix bug\"", Some("git"));
+        assert_execute(action, "git", &["commit", "-m", "fix bug"]);
+    }
+
+    #[test]
+    fn test_multiple_spaces_normalization() {
+        // 連続するスペースが無視され、正しくパースされるか
+        // input:   ls    -a      -l
+        let action = parse_cmd("  ls    -a      -l  ", None);
+        assert_execute(action, "ls", &["-a", "-l"]);
+    }
+
+    #[test]
+    fn test_escape_char_only() {
+        // "!" だけ入力された場合
+        // (! ls のつもりで ls を書き忘れた場合など)
+        let action = parse_cmd("!", Some("git"));
+        // 引数がなくなるため DoNothing になるはず
+        assert_eq!(action, CommandAction::DoNothing);
+    }
+
+    #[test]
+    fn test_escape_detached_multiple_spaces() {
+        // "!    ls" のようにスペースが多い場合
+        let action = parse_cmd("!    ls -h", Some("git"));
+        assert_execute(action, "ls", &["-h"]);
+    }
+
+    #[test]
+    fn test_cd_with_too_many_args() {
+        // cd コマンドに引数が多すぎる場合、最初の引数だけ採用するか確認
+        // input: cd dir1 dir2
+        let action = parse_cmd("cd dir1 dir2", None);
+        match action {
+            CommandAction::ChangeDirectory(Some(path)) => assert_eq!(path, "dir1"),
+            _ => panic!("Expected ChangeDirectory, got {:?}", action),
+        }
+    }
+
+    #[test]
+    fn test_single_quote_handling() {
+        // シングルクォートの扱い
+        // input: echo 'foo bar'
+        let action = parse_cmd("echo 'foo bar'", None);
+        assert_execute(action, "echo", &["foo bar"]);
+    }
 }
