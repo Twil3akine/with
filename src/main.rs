@@ -1,6 +1,8 @@
+mod context;
 mod parser;
 mod with_helper;
 
+use context::*;
 use parser::*;
 use rustyline::{Cmd, Editor, KeyCode, Modifiers, Movement, Result, error::ReadlineError};
 use std::{

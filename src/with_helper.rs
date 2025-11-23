@@ -27,7 +27,7 @@ impl Highlighter for WithHelper {
                     let styled_content = if let Some(sep_idx) = content_inside.find(": ") {
                         // "src : main" のように区切りがある場合
                         let path_part = &content_inside[0..sep_idx];
-                        let branch_part = &content_inside[sep_idx + 2..]; // " : " は3文字
+                        let branch_part = &content_inside[sep_idx + 2..]; // ": " は2文字
 
                         format!(
                             "{}{}{}{}{}: {}{}{}",
