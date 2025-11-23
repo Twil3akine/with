@@ -4,55 +4,13 @@ mod with_helper;
 use parser::*;
 use rustyline::{Cmd, Editor, KeyCode, Modifiers, Movement, Result, error::ReadlineError};
 use std::{
-    env, eprintln, format, fs,
+    env, eprintln, format,
     option::Option::{None, Some},
     path::{Path, PathBuf},
     println, process,
     result::Result::Ok,
 };
 use with_helper::WithHelper;
-
-// --- Git branch 取得ロジック---
-/// ファイルの中身からブランチ名またはハッシュを抽出する純粋関数
-fn parse_git_head(content: &str) -> Option<String> {
-    let content = content.trim();
-
-    // "ref: refs/heads/main" の形式なら "main" を返す
-    if let Some(branch) = content.strip_prefix("ref: refs/heads/") {
-        return Some(branch.to_string());
-    }
-
-    // Detached HEAD (ハッシュ値) の場合は先頭7文字を返す
-    if content.len() >= 7 {
-        return Some(content[..7].to_string());
-    }
-
-    None
-}
-
-/// カレントディレクトリから遡って .git/HEAD を探し、ブランチ名を返す
-fn get_git_branch(cwd: &Path) -> Option<String> {
-    let mut current = cwd;
-
-    loop {
-        let git_dir = current.join(".git");
-        let head_path = git_dir.join("HEAD");
-
-        if head_path.exists() {
-            // HEADファイルを読み込む
-            if let Ok(content) = fs::read_to_string(head_path) {
-                return parse_git_head(&content);
-            }
-            return None;
-        }
-
-        match current.parent() {
-            Some(p) => current = p,
-            None => break,
-        }
-    }
-    None
-}
 
 // --- コマンド実行処理 ---
 /// 指定されたプログラムを子プロセスとして実行する関数
