@@ -1,16 +1,36 @@
-use rustyline::{Completer, Helper, Hinter, Validator, highlight::Highlighter};
+use rustyline::{
+    Context, Helper, Hinter, Validator,
+    completion::{Completer, FilenameCompleter, Pair},
+    highlight::Highlighter,
+};
 use std::borrow::Cow;
 
 // --- Rustylineのヘルパー設定 ---
-#[derive(Helper, Completer, Hinter, Validator)]
-pub struct WithHelper {}
+#[derive(Helper, Hinter, Validator)]
+pub struct WithHelper {
+    pub completer: FilenameCompleter,
+}
 
 // プロンプトの色付け用
 const COLOR_GREEN: &str = "\x1b[32m";
 const COLOR_CYAN: &str = "\x1b[36m";
-const COLOR_MAGENTA: &str = "\x1b[35m"; // ★ 追加: ブランチ用
+const COLOR_MAGENTA: &str = "\x1b[35m";
 const STYLE_BOLD: &str = "\x1b[1m";
 const STYLE_RESET: &str = "\x1b[0m";
+
+impl Completer for WithHelper {
+    type Candidate = Pair;
+
+    fn complete(
+        &self, // FIXME should be `&mut self`
+        line: &str,
+        pos: usize,
+        ctx: &Context<'_>,
+    ) -> rustyline::Result<(usize, Vec<Pair>)> {
+        // 処理を標準のFilenameCompleterに丸投げ（委譲）する
+        self.completer.complete(line, pos, ctx)
+    }
+}
 
 impl Highlighter for WithHelper {
     fn highlight_prompt<'b, 's: 'b, 'p: 'b>(
