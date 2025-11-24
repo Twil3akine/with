@@ -16,6 +16,23 @@ use std::{
 };
 use with_helper::WithHelper;
 
+fn print_help() {
+    println!("With - Command Wrapper Tool");
+    println!();
+    println!("Usage:");
+    println!("  <command> [args]  Execute command in the target context");
+    println!("  cd <path>         Change current directory");
+    println!("  ! <command>       Execute external command (e.g. !ls, !vim)");
+    println!("  clear/cls         Clear the screen");
+    println!("  help              Show this help message");
+    println!("  exit/quit (e/q)   Exit the application");
+    println!();
+    println!("Keyboard Shortcuts:");
+    println!("  Ctrl + C          Cancel input / Interrupt process");
+    println!("  Ctrl + D          Exit (EOF)");
+    println!("  Tab               File completion");
+}
+
 // --- コマンド実行処理 ---
 /// 指定されたプログラムを子プロセスとして実行する関数
 /// 失敗しても親プロセス（このREPL）はクラッシュさせない
@@ -103,9 +120,16 @@ fn run_repl(target_cmd: Option<&str>, base_path: &Path) -> Result<()> {
                             eprintln!("Failed to change directory: {}", e);
                         }
                     }
-
-                    CommandAction::Exit => break,
+                    CommandAction::Clear(args) => {
+                        let program = "clear";
+                        // 既存の関数を使って実行 (これで clear -x なども動くようになります)
+                        execute_child_process(program, args);
+                    }
+                    CommandAction::Help => {
+                        print_help();
+                    }
                     CommandAction::DoNothing => {}
+                    CommandAction::Exit => break,
                     CommandAction::Error(msg) => eprintln!("Error: {}", msg),
                 }
             }

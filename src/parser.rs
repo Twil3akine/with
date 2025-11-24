@@ -18,11 +18,20 @@ const EXIT_COMMANDS: [&str; 4] = ["e", "q", "exit", "quit"];
 pub fn parse_cmd(line: &str, target_cmd: Option<&str>) -> CommandAction {
     let line = line.trim();
 
+    // Windows対応: 表示は '\' (バックスラッシュ) だが、
+    // shell-words に渡す前に内部的に '/' (スラッシュ) に置換する。
+    #[cfg(windows)]
+    let line_owned = line.replace('\\', "/");
+
+    #[cfg(windows)]
+    let line = line_owned.as_str();
+
     // 終了コマンドかどうかチェック
     if EXIT_COMMANDS.contains(&line) {
         return CommandAction::Exit;
     }
 
+    // 引数を分割
     let mut args = match shell_words::split(line) {
         Ok(a) => a,
         Err(e) => return CommandAction::Error(e.to_string()),
@@ -32,52 +41,59 @@ pub fn parse_cmd(line: &str, target_cmd: Option<&str>) -> CommandAction {
         if let Some(target_cmd) = target_cmd {
             return CommandAction::Execute {
                 program: target_cmd.to_string(),
-                args,
+                args: vec![],
             };
         }
         return CommandAction::DoNothing;
     }
 
-    let first_arg = &args[0];
+    // 先頭の要素（コマンド名候補）を取得
+    let first_arg: &str = &args[0];
 
-    // 1. 脱出コマンド (!cmd)
-    if let Some(first_arg) = first_arg.strip_prefix('!') {
-        let program;
-        if first_arg.len() > 1 {
-            // "!ls" -> "ls"
-            program = first_arg.to_string();
+    match first_arg {
+        // --- 内部コマンド (Built-in) ---
+        "cd" => {
+            let target = if args.len() > 1 {
+                Some(args[1].to_string())
+            } else {
+                None
+            };
+            CommandAction::ChangeDirectory(target)
+        }
+        "clear" | "cls" => {
             args.remove(0);
-        } else {
-            // "! ls" -> "ls" (先頭要素 "!" を捨てる)
-            args.remove(0);
-            if args.is_empty() {
-                return CommandAction::DoNothing;
+            CommandAction::Clear(args)
+        }
+        "help" => CommandAction::Help,
+
+        // --- 脱出コマンド (!cmd) ---
+        s if s.starts_with('!') => {
+            let program;
+            if s.len() > 1 {
+                program = s[1..].to_string();
+                args.remove(0);
+            } else {
+                args.remove(0);
+                if args.is_empty() {
+                    return CommandAction::DoNothing;
+                }
+                program = args.remove(0);
             }
-            program = args.remove(0);
+            CommandAction::Execute { program, args }
         }
 
-        return CommandAction::Execute {
-            program,
-            args, // 残りの引数
-        };
-    }
-    // 2. 内部コマンド (cd)
-    if first_arg == "cd" {
-        let target = if args.len() > 1 {
-            Some(args[1].clone())
-        } else {
-            None
-        };
-        CommandAction::ChangeDirectory(target)
-    }
-    // 3. 通常実行 (Target Command)
-    else {
-        match target_cmd {
-            Some(target_cmd) => CommandAction::Execute {
-                program: target_cmd.to_string(),
-                args,
-            },
-            None => {
+        // --- 通常実行 ---
+        _ => {
+            if let Some(target) = target_cmd {
+                // ターゲット(git等)があるなら、引数は減らさずにそのまま全部渡す
+                // 例: input "status" -> args ["status"] -> git status
+                CommandAction::Execute {
+                    program: target.to_string(),
+                    args,
+                }
+            } else {
+                // ターゲットがないなら、先頭がプログラム名になる
+                // 例: input "ls -la" -> program "ls", args ["-la"]
                 let program = args.remove(0);
                 CommandAction::Execute { program, args }
             }
