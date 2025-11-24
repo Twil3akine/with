@@ -4,6 +4,8 @@ use std::option::Option::{None, Some};
 pub enum CommandAction {
     Execute { program: String, args: Vec<String> },
     ChangeDirectory(Option<String>),
+    Help,
+    Clear(Vec<String>),
     DoNothing,
     Exit,
     Error(String),
