@@ -25,6 +25,8 @@ fn print_help() {
     println!("  ! <command>       Execute external command (e.g. !ls, !vim)");
     println!("  clear/cls         Clear the screen");
     println!("  help              Show this help message");
+    println!("  pwd               Show current pass");
+    println!("  history           Show command history");
     println!("  exit/quit (e/q)   Exit the application");
     println!();
     println!("Keyboard Shortcuts:");
@@ -122,8 +124,16 @@ fn run_repl(target_cmd: Option<&str>, base_path: &Path) -> Result<()> {
                     }
                     CommandAction::Clear(args) => {
                         let program = "clear";
-                        // 既存の関数を使って実行 (これで clear -x なども動くようになります)
                         execute_child_process(program, args);
+                    }
+                    CommandAction::Pwd(args) => {
+                        let program = "pwd";
+                        execute_child_process(program, args);
+                    }
+                    CommandAction::History => {
+                        for (idx, history) in rl.history().iter().enumerate() {
+                            println!("{: >3}: {}", idx + 1, history);
+                        }
                     }
                     CommandAction::Help => {
                         print_help();

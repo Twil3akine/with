@@ -6,6 +6,8 @@ pub enum CommandAction {
     ChangeDirectory(Option<String>),
     Help,
     Clear(Vec<String>),
+    Pwd(Vec<String>),
+    History,
     DoNothing,
     Exit,
     Error(String),
@@ -64,6 +66,11 @@ pub fn parse_cmd(line: &str, target_cmd: Option<&str>) -> CommandAction {
             args.remove(0);
             CommandAction::Clear(args)
         }
+        "pwd" => {
+            args.remove(0);
+            CommandAction::Pwd(args)
+        }
+        "history" => CommandAction::History,
         "help" => CommandAction::Help,
 
         // --- 脱出コマンド (!cmd) ---
