@@ -22,7 +22,7 @@ impl Completer for WithHelper {
     type Candidate = Pair;
 
     fn complete(
-        &self, // FIXME should be `&mut self`
+        &self,
         line: &str,
         pos: usize,
         ctx: &Context<'_>,

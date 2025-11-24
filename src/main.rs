@@ -16,6 +16,25 @@ use std::{
 };
 use with_helper::WithHelper;
 
+fn print_help() {
+    println!("With - Command Wrapper Tool");
+    println!();
+    println!("Usage:");
+    println!("  <command> [args]  Execute command in the target context");
+    println!("  cd <path>         Change current directory");
+    println!("  ! <command>       Execute external command (e.g. !ls, !vim)");
+    println!("  clear/cls         Clear the screen");
+    println!("  help              Show this help message");
+    println!("  pwd               Show current pass");
+    println!("  history           Show command history");
+    println!("  exit/quit (e/q)   Exit the application");
+    println!();
+    println!("Keyboard Shortcuts:");
+    println!("  Ctrl + C          Cancel input / Interrupt process");
+    println!("  Ctrl + D          Exit (EOF)");
+    println!("  Tab               File completion");
+}
+
 // --- コマンド実行処理 ---
 /// 指定されたプログラムを子プロセスとして実行する関数
 /// 失敗しても親プロセス（このREPL）はクラッシュさせない
@@ -103,9 +122,24 @@ fn run_repl(target_cmd: Option<&str>, base_path: &Path) -> Result<()> {
                             eprintln!("Failed to change directory: {}", e);
                         }
                     }
-
-                    CommandAction::Exit => break,
+                    CommandAction::Clear(args) => {
+                        let program = "clear";
+                        execute_child_process(program, args);
+                    }
+                    CommandAction::Pwd(args) => {
+                        let program = "pwd";
+                        execute_child_process(program, args);
+                    }
+                    CommandAction::History => {
+                        for (idx, history) in rl.history().iter().enumerate() {
+                            println!("{: >3}: {}", idx + 1, history);
+                        }
+                    }
+                    CommandAction::Help => {
+                        print_help();
+                    }
                     CommandAction::DoNothing => {}
+                    CommandAction::Exit => break,
                     CommandAction::Error(msg) => eprintln!("Error: {}", msg),
                 }
             }
