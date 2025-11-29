@@ -1,9 +1,8 @@
 use std::process;
-use which::which;
 
 #[cfg(target_os = "windows")]
 fn resolve_program(program: &str) -> String {
-    match which(program) {
+    match which::which(program) {
         Ok(path) => path.to_string_lossy().to_string(),
         Err(_) => program.to_string(),
     }
