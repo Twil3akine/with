@@ -37,3 +37,40 @@ pub fn execute_child_process(program: &str, args: Vec<String>) {
         }
     }
 }
+
+// --- テスト ---
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Windows環境内のみでのテスト
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn test_resolve_program_windows_cmd() {
+        // cmd.exe は必ずあるはず
+        let res = resolve_program("cmd");
+        // "C:\Windows\System32\cmd.exe" のようなフルパスになっているかチェック
+        // (パスは環境によるので、とりあえず .exe で終わっているか確認など)
+        assert!(res.to_lowercase().ends_with(".exe"));
+        assert_ne!(res, "cmd");
+    }
+
+    // Windows環境で存在しないコマンドのテスト
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn test_resolve_program_windows_not_found() {
+        let cmd = "non_existent_command_12345aaaaaaaa";
+        let res = resolve_program(cmd);
+        // 見つからない場合は入力がそのまま返る仕様
+        assert_eq!(res, cmd);
+    }
+
+    // Linux/Mac環境でのテスト（変換しないことの確認）
+    #[test]
+    #[cfg(not(target_os = "windows"))]
+    fn test_resolve_program_unix_noop() {
+        let cmd = "ls";
+        let res = resolve_program(cmd);
+        assert_eq!(res, cmd);
+    }
+}
