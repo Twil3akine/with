@@ -14,6 +14,7 @@ use std::{
     println, process,
     result::Result::Ok,
 };
+use which::which;
 use with_helper::WithHelper;
 
 fn print_help() {
@@ -35,11 +36,26 @@ fn print_help() {
     println!("  Tab               File completion");
 }
 
+#[cfg(target_os = "windows")]
+fn resolve_program(program: &str) -> String {
+    match which(program) {
+        Ok(path) => path.to_string_lossy().to_string(),
+        Err(_) => program.to_string(),
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn resolve_program(program: &str) -> String {
+    program.to_string()
+}
+
 // --- コマンド実行処理 ---
 /// 指定されたプログラムを子プロセスとして実行する関数
 /// 失敗しても親プロセス（このREPL）はクラッシュさせない
 fn execute_child_process(program: &str, args: Vec<String>) {
-    let mut command = process::Command::new(program);
+    let program_path = resolve_program(program);
+
+    let mut command = process::Command::new(program_path);
     command.args(args);
 
     // spawn() でプロセスを開始
