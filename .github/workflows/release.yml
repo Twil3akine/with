@@ -58,6 +58,8 @@ jobs:
 
             - name: Cache dependencies
               uses: swatinem/rust-cache@v2
+              with:
+                key: ${{ matrix.target }}
 
             # テストはネイティブ環境のみ（crossでのテストは遅いため省略可だが、やるならcross test）
             - name: Run tests
