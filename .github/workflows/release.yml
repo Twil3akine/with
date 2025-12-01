@@ -58,6 +58,8 @@ jobs:
 
             - name: Cache dependencies
               uses: swatinem/rust-cache@v2
+              with:
+                key: ${{ matrix.target }}
 
             # テストはネイティブ環境のみ（crossでのテストは遅いため省略可だが、やるならcross test）
             - name: Run tests
@@ -66,6 +68,7 @@ jobs:
 
             # ビルド：crossを使う場合と普通のcargoを使う場合で分岐
             - name: Build Release
+              shell: bash
               run: |
                   if [ "${{ matrix.use_cross }}" == "true" ]; then
                     cross build --release --target ${{ matrix.target }}
