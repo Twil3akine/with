@@ -66,6 +66,7 @@ jobs:
 
             # ビルド：crossを使う場合と普通のcargoを使う場合で分岐
             - name: Build Release
+              shell: bash
               run: |
                   if [ "${{ matrix.use_cross }}" == "true" ]; then
                     cross build --release --target ${{ matrix.target }}
