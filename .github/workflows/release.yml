@@ -1,6 +1,7 @@
 name: Release
 
 on:
+    workflow_dispatch:
     push:
         tags:
             - "v*.*.*"
@@ -14,23 +15,33 @@ jobs:
         strategy:
             matrix:
                 include:
-                    # Linux: tar.gz
+                    # --- Linux (x86_64 / 一般的なPC用) ---
                     - os: ubuntu-latest
-                      target_file: with
-                      asset_name: with-linux.tar.gz
-                      command: tar -czf with-linux.tar.gz with
+                      target: x86_64-unknown-linux-gnu
+                      asset_name: with-linux-x86_64.tar.gz
+                      use_cross: false
+                      command: tar -czf with-linux-x86_64.tar.gz with
 
-                    # macOS: tar.gz
+                    # --- Linux (aarch64 / Raspberry Pi用) ★ここを追加！ ---
+                    - os: ubuntu-latest
+                      target: aarch64-unknown-linux-gnu
+                      asset_name: with-linux-aarch64.tar.gz
+                      use_cross: true
+                      command: tar -czf with-linux-aarch64.tar.gz with
+
+                    # --- macOS ---
                     - os: macos-latest
-                      target_file: with
+                      target: x86_64-apple-darwin
                       asset_name: with-macos.tar.gz
+                      use_cross: false
                       command: tar -czf with-macos.tar.gz with
 
-                    # Windows: zip (PowerShellを使うためコマンドを分けるか、7zを使う)
-                    # ここでは汎用的に使える 7z (Windowsランナーにプリインストール済) を使用
+                    # --- Windows ---
                     - os: windows-latest
-                      target_file: with.exe
+                      target: x86_64-pc-windows-msvc
                       asset_name: with-windows.zip
+                      use_cross: false
+                      target_file: with.exe
                       command: 7z a with-windows.zip with.exe
 
         steps:
@@ -38,29 +49,42 @@ jobs:
 
             - name: Set up Rust
               uses: dtolnay/rust-toolchain@stable
+              with:
+                  targets: ${{ matrix.target }}
+
+            - name: Install Cross
+              if: matrix.use_cross
+              run: cargo install cross --git https://github.com/cross-rs/cross
 
             - name: Cache dependencies
               uses: swatinem/rust-cache@v2
 
+            # テストはネイティブ環境のみ（crossでのテストは遅いため省略可だが、やるならcross test）
             - name: Run tests
+              if: matrix.use_cross == false
               run: cargo test --verbose
 
+            # ビルド：crossを使う場合と普通のcargoを使う場合で分岐
             - name: Build Release
-              run: cargo build --release
+              run: |
+                  if [ "${{ matrix.use_cross }}" == "true" ]; then
+                    cross build --release --target ${{ matrix.target }}
+                  else
+                    cargo build --release --target ${{ matrix.target }}
+                  fi
 
-            # バイナリがあるディレクトリに移動して圧縮コマンドを実行
-            # (パス問題を避けるため cd してから実行するのが確実です)
+            # 圧縮
             - name: Compress binary
               shell: bash
               run: |
-                  cd target/release
+                  # target指定時の出力先は target/{target-triple}/release/ になる
+                  cd target/${{ matrix.target }}/release
                   ${{ matrix.command }}
 
             - name: Release
               uses: softprops/action-gh-release@v1
               if: startsWith(github.ref, 'refs/tags/')
               with:
-                  # 圧縮したファイルを指定
-                  files: target/release/${{ matrix.asset_name }}
+                  files: target/${{ matrix.target }}/release/${{ matrix.asset_name }}
                   generate_release_notes: true
                   draft: true
