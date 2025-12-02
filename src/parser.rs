@@ -13,11 +13,17 @@ pub enum CommandAction {
     Error(String),
 }
 
+#[derive(Clone)]
+pub struct TargetContext {
+    pub program: String,
+    pub args: Vec<String>,
+}
+
 // 終了判定に使うコマンドのリスト
 const EXIT_COMMANDS: [&str; 4] = ["e", "q", "exit", "quit"];
 
 /// 入力行とターゲットコマンドを受け取り、アクションを返す
-pub fn parse_cmd(line: &str, target_cmd: Option<&str>) -> CommandAction {
+pub fn parse_cmd(line: &str, context: Option<&TargetContext>) -> CommandAction {
     let line = line.trim();
 
     // Windows対応: 表示は '\' (バックスラッシュ) だが、
@@ -40,10 +46,10 @@ pub fn parse_cmd(line: &str, target_cmd: Option<&str>) -> CommandAction {
     };
 
     if args.is_empty() {
-        if let Some(target_cmd) = target_cmd {
+        if let Some(ctx) = context {
             return CommandAction::Execute {
-                program: target_cmd.to_string(),
-                args: vec![],
+                program: ctx.program.clone(),
+                args: ctx.args.clone(),
             };
         }
         return CommandAction::DoNothing;
@@ -91,16 +97,15 @@ pub fn parse_cmd(line: &str, target_cmd: Option<&str>) -> CommandAction {
 
         // --- 通常実行 ---
         _ => {
-            if let Some(target) = target_cmd {
-                // ターゲット(git等)があるなら、引数は減らさずにそのまま全部渡す
-                // 例: input "status" -> args ["status"] -> git status
+            if let Some(ctx) = context {
+                let mut final_args = ctx.args.clone();
+                final_args.append(&mut args);
+
                 CommandAction::Execute {
-                    program: target.to_string(),
-                    args,
+                    program: ctx.program.clone(),
+                    args: final_args,
                 }
             } else {
-                // ターゲットがないなら、先頭がプログラム名になる
-                // 例: input "ls -la" -> program "ls", args ["-la"]
                 let program = args.remove(0);
                 CommandAction::Execute { program, args }
             }
