@@ -1,0 +1,51 @@
+name: Feature Request
+description: 新しい機能の提案や改善案を作成します
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        新機能の提案ありがとうございます！以下の項目に入力してください。
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: 概要
+      description: 実装したい機能の概要や、解決したい課題を記述してください。
+      placeholder: |
+        例: `with` の中からさらに `!with <cmd>` を実行した際、プロンプト上でコンテキストが積み上がって表示されるようにしたい。
+    validations:
+      required: true
+
+  - type: textarea
+    id: requirements
+    attributes:
+      label: 要件
+      description: 満たすべき要件、挙動、表示例などをリストアップしてください。
+      placeholder: |
+        - 親プロセスから子プロセスへコンテキスト情報を引き継ぐ仕組みの実装。
+        - 表示例:
+            1. `with git` -> `git >`
+            2. `!with cargo` -> `git/cargo >`
+    validations:
+      required: true
+
+  - type: textarea
+    id: approach
+    attributes:
+      label: 技術的アプローチ案
+      description: 実装のアイデアや、利用する環境変数などの案があれば記述してください。
+      placeholder: |
+        - 環境変数 `WITH_CONTEXT_STACK` を利用して、親から子へ現在のスタックをJSON配列などで渡す。
+        - `main.rs` の起動時にこの環境変数をチェックし、存在すれば自身のコンテキストを追加する。
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: verification
+    attributes:
+      label: 確認事項
+      options:
+        - label: 既存の機能と競合しないことを確認しましたか？
+          required: false
