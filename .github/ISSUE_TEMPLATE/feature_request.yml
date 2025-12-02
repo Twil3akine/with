@@ -1,0 +1,58 @@
+name: Feature Request
+description: 新しい機能の提案や改善案を作成します
+title: "feat: "
+labels: ["enhancement"]
+body:
+    - type: markdown
+      attributes:
+          value: |
+              機能の提案ありがとうございます！
+              以下の項目に入力するだけで、整ったフォーマットのIssueが作成されます。
+
+    # 1. 概要の入力欄
+    - type: textarea
+      id: summary
+      attributes:
+          label: 概要
+          description: 実装したい機能の概要や、解決したい課題を記述してください。
+          placeholder: |
+              例: `with` 経由で実行したコマンドが長時間かかった場合、終了時にデスクトップ通知（OSネイティブ通知）を送る機能を追加したい。
+              これにより、ビルドやテスト実行中に別の作業をしていても、完了にすぐ気付けるようにする。
+      validations:
+          required: true
+
+    # 2. 要件の入力欄
+    - type: textarea
+      id: requirements
+      attributes:
+          label: 要件
+          description: 満たすべき条件、挙動、UIイメージなどを箇条書きで記述してください。
+          placeholder: |
+              - **閾値設定:** すべてのコマンドで通知すると煩わしいため、「実行時間が N秒（例: 10秒）を超えた場合」のみ通知する。
+              - **通知内容:**
+                  - 成功時: "Command 'cargo build' finished successfully ✅"
+                  - 失敗時: "Command 'cargo build' failed ❌"
+              - **On/Off:** ユーザーが設定（または起動引数）で無効化できるようにする。
+      validations:
+          required: true
+
+    # 3. 技術的アプローチの入力欄
+    - type: textarea
+      id: technical_approach
+      attributes:
+          label: 技術的アプローチ (任意)
+          description: 実装のアイデア、使用するクレート、設計案などがあれば記述してください。
+          placeholder: |
+              - [notify-rust] クレートを使用することで、Windows/macOS/Linux クロスプラットフォームでの通知が可能。
+              - コマンド実行の `start` と `end` の時間を計測し、閾値判定を行う。
+      validations:
+          required: false
+
+    # 4. 確認チェックボックス
+    - type: checkboxes
+      id: checklist
+      attributes:
+          label: 確認事項
+          options:
+              - label: 既存のIssueと内容が重複していないことを確認しました
+                required: true
