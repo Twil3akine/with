@@ -167,7 +167,7 @@ mod tests {
         // args が ["remote", "-v"] に結合されていることを確認
         assert_execute(action, "git", &["remote", "-v"]);
     }
-    
+
     /// 例: `with docker compose exec` + 入力 `app bash`
     #[test]
     fn test_target_context_multiple_args() {
