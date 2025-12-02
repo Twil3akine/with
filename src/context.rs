@@ -1,4 +1,4 @@
-use std::{fs, path::Path};
+use std::{fs, option::Option::*, path::Path};
 
 /// ディレクトリ表示名の解決ロジック
 /// current: 現在のディレクトリ, base: 起動時のディレクトリ

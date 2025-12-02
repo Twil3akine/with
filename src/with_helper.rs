@@ -41,7 +41,7 @@ impl Completer for WithHelper {
         let has_trailing_space = line_up_to_cursor
             .chars()
             .last()
-            .map_or(false, |c| c.is_whitespace());
+            .is_some_and(|c| c.is_whitespace());
         let current_arg_index = if args.is_empty() {
             0
         } else if has_trailing_space {
@@ -56,12 +56,10 @@ impl Completer for WithHelper {
             } else {
                 None
             }
+        } else if current_arg_index == 1 && !args.is_empty() {
+            Some(args[0].as_str())
         } else {
-            if current_arg_index == 1 && !args.is_empty() {
-                Some(args[0].as_str())
-            } else {
-                None
-            }
+            None
         };
 
         if let Some(cmd) = target_cmd {
