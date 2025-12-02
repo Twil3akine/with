@@ -3,12 +3,18 @@ use rustyline::{
     completion::{Completer, FilenameCompleter, Pair},
     highlight::Highlighter,
 };
-use std::borrow::Cow;
+use std::{
+    borrow::Cow,
+    iter::{IntoIterator, Iterator},
+    option::Option::{self, Some},
+    vec::Vec,
+};
 
 // --- Rustylineのヘルパー設定 ---
 #[derive(Helper, Hinter, Validator)]
 pub struct WithHelper {
     pub completer: FilenameCompleter,
+    pub context_program: Option<String>,
 }
 
 // プロンプトの色付け用
@@ -28,6 +34,60 @@ impl Completer for WithHelper {
         ctx: &Context<'_>,
     ) -> rustyline::Result<(usize, Vec<Pair>)> {
         // 処理を標準のFilenameCompleterに丸投げ（委譲）する
+        let line_up_to_cursor = &line[..pos];
+
+        let args = shell_words::split(line_up_to_cursor).unwrap_or_default();
+
+        let has_trailing_space = line_up_to_cursor
+            .chars()
+            .last()
+            .map_or(false, |c| c.is_whitespace());
+        let current_arg_index = if args.is_empty() {
+            0
+        } else if has_trailing_space {
+            args.len()
+        } else {
+            args.len() - 1
+        };
+
+        let target_cmd = if let Some(prog) = &self.context_program {
+            if current_arg_index == 0 {
+                Some(prog.as_str())
+            } else {
+                None
+            }
+        } else {
+            if current_arg_index == 1 && !args.is_empty() {
+                Some(args[0].as_str())
+            } else {
+                None
+            }
+        };
+
+        if let Some(cmd) = target_cmd {
+            let word = if has_trailing_space {
+                ""
+            } else {
+                args.last().map(|s| s.as_str()).unwrap_or("")
+            };
+
+            let start = pos - word.len();
+
+            let candidates = get_subcommands(cmd);
+            let matches: Vec<Pair> = candidates
+                .into_iter()
+                .filter(|c| c.starts_with(word))
+                .map(|c| Pair {
+                    display: c.to_string(),
+                    replacement: c.to_string(),
+                })
+                .collect();
+
+            if !matches.is_empty() {
+                return Ok((start, matches));
+            }
+        }
+
         self.completer.complete(line, pos, ctx)
     }
 }
@@ -94,5 +154,26 @@ impl Highlighter for WithHelper {
             }
         }
         Cow::Borrowed(prompt)
+    }
+}
+
+/// 指定されたコマンドに対するサブコマンドのリストを返す
+pub fn get_subcommands(command: &str) -> Vec<&str> {
+    match command {
+        "git" => vec![
+            "status", "commit", "add", "push", "pull", "fetch", "checkout", "branch", "diff",
+            "log", "merge", "rebase", "reset", "switch", "reflog",
+        ],
+        "cargo" => vec![
+            "build", "check", "clean", "doc", "new", "init", "run", "test", "bench", "update",
+            "search", "publish", "install",
+        ],
+        "pnpm" | "bun" | "npm" => vec![
+            "install", "start", "test", "run", "build", "publish", "ci", "audit",
+        ],
+        "docker" => vec![
+            "ps", "run", "exec", "build", "pull", "push", "images", "network", "volume", "compose",
+        ],
+        _ => vec![],
     }
 }

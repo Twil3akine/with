@@ -45,10 +45,13 @@ fn run_repl(target_ctx: Option<&TargetContext>, base_path: &Path) -> Result<()> 
         .completion_type(CompletionType::List)
         .build();
 
+    let context_program = target_ctx.map(|ctx| ctx.program.clone());
+
     // エディタの初期化
     let mut rl = Editor::<WithHelper, rustyline::history::DefaultHistory>::with_config(config)?;
     rl.set_helper(Some(WithHelper {
         completer: rustyline::completion::FilenameCompleter::new(),
+        context_program,
     }));
 
     // キーバインド設定: Escキーで入力行を全削除（Windowsライクな挙動）
