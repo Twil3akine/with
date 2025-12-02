@@ -118,7 +118,17 @@ mod tests {
     use super::*;
 
     // --- ヘルパー関数 ---
-    // CommandAction::Execute の中身（プログラム名と引数）を簡単に検証するための関数
+
+    // テスト用のコンテキスト作成ヘルパー
+    // 例: create_ctx("git", &["remote"]) -> TargetContext { program: "git", args: ["remote"] }
+    fn create_ctx(program: &str, args: &[&str]) -> Option<TargetContext> {
+        Some(TargetContext {
+            program: program.to_string(),
+            args: args.iter().map(|s| s.to_string()).collect(),
+        })
+    }
+
+    // CommandAction::Execute の中身検証ヘルパー
     fn assert_execute(action: CommandAction, expected_prog: &str, expected_args: &[&str]) {
         match action {
             CommandAction::Execute { program, args } => {
@@ -131,24 +141,42 @@ mod tests {
 
     // --- 基本動作テスト ---
 
-    /// ターゲットコマンド指定時の基本動作
-    /// 例: `with git` 起動中に `status` と入力 -> `git status` が実行されるか
+    /// ターゲットコマンド指定時の基本動作 (引数なしコンテキスト)
+    /// 例: `with git` 起動中に `status` と入力 -> `git status`
     #[test]
     fn test_target_cmd_basic() {
-        let action = parse_cmd("status", Some("git"));
+        let ctx = create_ctx("git", &[]);
+        let action = parse_cmd("status", ctx.as_ref());
         assert_execute(action, "git", &["status"]);
     }
 
     /// ターゲットコマンドに引数がある場合
-    /// 例: `commit -m "msg"` -> `git commit -m "msg"` と分解されるか
+    /// 例: `commit -m "msg"` -> `git commit -m "msg"`
     #[test]
     fn test_target_cmd_with_args() {
-        let action = parse_cmd("commit -m \"msg\"", Some("git"));
+        let ctx = create_ctx("git", &[]);
+        let action = parse_cmd("commit -m \"msg\"", ctx.as_ref());
         assert_execute(action, "git", &["commit", "-m", "msg"]);
     }
 
+    /// 例: `with git remote` (ctx args=["remote"]) + 入力 `-v` -> `git remote -v`
+    #[test]
+    fn test_target_context_concatenation() {
+        let ctx = create_ctx("git", &["remote"]);
+        let action = parse_cmd("-v", ctx.as_ref());
+        // args が ["remote", "-v"] に結合されていることを確認
+        assert_execute(action, "git", &["remote", "-v"]);
+    }
+    
+    /// 例: `with docker compose exec` + 入力 `app bash`
+    #[test]
+    fn test_target_context_multiple_args() {
+        let ctx = create_ctx("docker", &["compose", "exec"]);
+        let action = parse_cmd("app bash", ctx.as_ref());
+        assert_execute(action, "docker", &["compose", "exec", "app", "bash"]);
+    }
+
     /// ターゲットコマンドなし（with単体起動）の場合
-    /// 例: `ls -al` -> そのまま `ls` コマンドとして実行されるか
     #[test]
     fn test_no_target_basic() {
         let action = parse_cmd("ls -al", None);
@@ -157,40 +185,36 @@ mod tests {
 
     // --- 脱出コマンド (!cmd) テスト ---
 
-    /// "!" とコマンドがくっついている場合
-    /// 例: `!ls` -> `git` ではなく `ls` が実行されるか
     #[test]
     fn test_escape_command_attached() {
-        let action = parse_cmd("!ls -h", Some("git"));
+        let ctx = create_ctx("git", &[]);
+        let action = parse_cmd("!ls -h", ctx.as_ref());
         assert_execute(action, "ls", &["-h"]);
     }
 
-    /// "!" とコマンドが離れている場合
-    /// 例: `! ls` -> スペースがあっても正しく `ls` が認識されるか
     #[test]
     fn test_escape_command_detached() {
-        let action = parse_cmd("! ls -h", Some("git"));
+        let ctx = create_ctx("git", &[]);
+        let action = parse_cmd("! ls -h", ctx.as_ref());
         assert_execute(action, "ls", &["-h"]);
     }
 
     // --- 内部コマンド (cd) テスト ---
 
-    /// ディレクトリ移動 (cd)
-    /// 例: `cd src` -> ChangeDirectory アクションが生成されるか
     #[test]
     fn test_cd_command() {
-        let action = parse_cmd("cd src", Some("git"));
+        let ctx = create_ctx("git", &[]);
+        let action = parse_cmd("cd src", ctx.as_ref());
         match action {
             CommandAction::ChangeDirectory(Some(path)) => assert_eq!(path, "src"),
             _ => panic!("Expected ChangeDirectory, got {:?}", action),
         }
     }
 
-    /// 引数なしの cd
-    /// 例: `cd` -> ChangeDirectory(None) (ホームディレクトリ移動などの意味) になるか
     #[test]
     fn test_cd_empty() {
-        let action = parse_cmd("cd", Some("git"));
+        let ctx = create_ctx("git", &[]);
+        let action = parse_cmd("cd", ctx.as_ref());
         match action {
             CommandAction::ChangeDirectory(None) => {} // OK
             _ => panic!("Expected ChangeDirectory(None), got {:?}", action),
@@ -199,26 +223,25 @@ mod tests {
 
     // --- 終了コマンド テスト ---
 
-    /// 終了コマンドのエイリアス確認
-    /// `exit`, `q` などがすべて Exit アクションになるか
     #[test]
     fn test_exit_commands() {
-        assert_eq!(parse_cmd("exit", Some("git")), CommandAction::Exit);
+        let ctx = create_ctx("git", &[]);
+        assert_eq!(parse_cmd("exit", ctx.as_ref()), CommandAction::Exit);
         assert_eq!(parse_cmd("q", None), CommandAction::Exit);
     }
 
     // --- 空入力のハンドリング ---
 
     /// ターゲット指定時の空入力
-    /// 例: `with git` で空エンター -> `git` 単体（ヘルプ表示など）を実行するか
+    /// コンテキストの args もそのまま実行されるべき
     #[test]
     fn test_empty_input_executes_target() {
-        let action = parse_cmd("", Some("git"));
-        assert_execute(action, "git", &[]);
+        let ctx = create_ctx("git", &["status"]);
+        let action = parse_cmd("", ctx.as_ref());
+        // "git status" が実行される
+        assert_execute(action, "git", &["status"]);
     }
 
-    /// ターゲットなし時の空入力
-    /// 例: `with` 単体で空エンター -> 何もしない (DoNothing) か
     #[test]
     fn test_empty_input_no_target() {
         let action = parse_cmd("", None);
@@ -227,8 +250,6 @@ mod tests {
 
     // --- パースのエラー処理・特殊ケース ---
 
-    /// クォートの閉じ忘れ
-    /// 例: `echo "hello` -> エラーとして処理されるか
     #[test]
     fn test_unclosed_quote() {
         let action = parse_cmd("echo \"hello", None);
@@ -238,39 +259,33 @@ mod tests {
         }
     }
 
-    /// クォート内のスペース処理
-    /// 例: `"fix bug"` が1つの引数として扱われるか
     #[test]
     fn test_quoted_arguments_with_spaces() {
-        let action = parse_cmd("commit -m \"fix bug\"", Some("git"));
+        let ctx = create_ctx("git", &[]);
+        let action = parse_cmd("commit -m \"fix bug\"", ctx.as_ref());
         assert_execute(action, "git", &["commit", "-m", "fix bug"]);
     }
 
-    /// 連続スペースの正規化
-    /// 例: `ls    -a` -> `ls`, `-a` と正しく分割されるか
     #[test]
     fn test_multiple_spaces_normalization() {
         let action = parse_cmd("  ls    -a      -l  ", None);
         assert_execute(action, "ls", &["-a", "-l"]);
     }
 
-    /// "!" だけ入力された場合
-    /// 無効な入力として無視 (DoNothing) されるか
     #[test]
     fn test_escape_char_only() {
-        let action = parse_cmd("!", Some("git"));
+        let ctx = create_ctx("git", &[]);
+        let action = parse_cmd("!", ctx.as_ref());
         assert_eq!(action, CommandAction::DoNothing);
     }
 
-    /// "!" とコマンドの間に大量のスペースがある場合
     #[test]
     fn test_escape_detached_multiple_spaces() {
-        let action = parse_cmd("!    ls -h", Some("git"));
+        let ctx = create_ctx("git", &[]);
+        let action = parse_cmd("!    ls -h", ctx.as_ref());
         assert_execute(action, "ls", &["-h"]);
     }
 
-    /// cd に引数が多すぎる場合
-    /// 例: `cd dir1 dir2` -> 最初の引数 `dir1` だけが採用されるか
     #[test]
     fn test_cd_with_too_many_args() {
         let action = parse_cmd("cd dir1 dir2", None);
@@ -280,8 +295,6 @@ mod tests {
         }
     }
 
-    /// シングルクォートの処理
-    /// 例: `'foo bar'` もダブルクォート同様に1つの引数になるか
     #[test]
     fn test_single_quote_handling() {
         let action = parse_cmd("echo 'foo bar'", None);
@@ -290,8 +303,6 @@ mod tests {
 
     // --- 新規実装コマンド (Clear / Help) テスト ---
 
-    /// clear コマンド (引数なし)
-    /// Clear アクションになり、引数リストが空か
     #[test]
     fn test_cmd_clear_no_args() {
         let action = parse_cmd("clear", None);
@@ -301,8 +312,6 @@ mod tests {
         }
     }
 
-    /// clear コマンド (引数あり)
-    /// 例: `clear -x` -> 引数が保持されているか
     #[test]
     fn test_cmd_clear_with_args() {
         let action = parse_cmd("clear -x", None);
@@ -312,8 +321,6 @@ mod tests {
         }
     }
 
-    /// cls (Windowsエイリアス)
-    /// `cls` と打っても `Clear` アクションになるか
     #[test]
     fn test_cmd_cls_windows_alias() {
         let action = parse_cmd("cls", None);
@@ -323,54 +330,39 @@ mod tests {
         }
     }
 
-    /// help コマンド
-    /// Help アクションになるか
     #[test]
     fn test_cmd_help() {
         let action = parse_cmd("help", None);
         assert_eq!(action, CommandAction::Help);
     }
 
-    /// help コマンド (引数無視)
-    /// `help me` と打っても引数は無視され、単なる Help になるか
     #[test]
     fn test_cmd_help_ignores_args() {
         let action = parse_cmd("help me", None);
         assert_eq!(action, CommandAction::Help);
     }
 
-    // --- HISTORY コマンドのテスト ---
+    // --- HISTORY / PWD コマンドのテスト ---
 
-    /// history 単体
-    /// History アクションが正しく生成されるか
     #[test]
     fn test_cmd_history_basic() {
         let action = parse_cmd("history", None);
         assert_eq!(action, CommandAction::History);
     }
 
-    /// history ターゲット指定時の優先度
-    /// 例: "with git" 状態でも、"history" と打てば内部履歴を表示すべき
-    /// ("git history" というサブコマンドとしては解釈されない)
     #[test]
     fn test_cmd_history_priority() {
-        let action = parse_cmd("history", Some("git"));
+        let ctx = create_ctx("git", &[]);
+        let action = parse_cmd("history", ctx.as_ref());
         assert_eq!(action, CommandAction::History);
     }
 
-    /// history 引数あり
-    /// 現状の実装では引数（"history 10"など）は無視して、
-    /// Historyアクション（全履歴表示）になる仕様を確認
     #[test]
     fn test_cmd_history_ignores_args() {
         let action = parse_cmd("history 10", None);
         assert_eq!(action, CommandAction::History);
     }
 
-    // --- PWD コマンドのテスト ---
-
-    /// pwd 単体
-    /// 引数なしの Pwd アクションになるか
     #[test]
     fn test_cmd_pwd_basic() {
         let action = parse_cmd("pwd", None);
@@ -380,11 +372,8 @@ mod tests {
         }
     }
 
-    /// pwd 引数あり (-L, -P など)
-    /// 引数が正しくベクタに格納され、実行時に渡されるようになっているか
     #[test]
     fn test_cmd_pwd_with_args() {
-        // "pwd -L" -> logical path
         let action = parse_cmd("pwd -L", None);
         match action {
             CommandAction::Pwd(args) => assert_eq!(args, vec!["-L"]),
@@ -392,38 +381,31 @@ mod tests {
         }
     }
 
-    /// pwd ターゲット指定時の優先度
-    /// 例: "with git" 状態でも "pwd" は内部コマンドとして処理されるべき
-    /// ("git pwd" にはならない)
     #[test]
     fn test_cmd_pwd_priority() {
-        let action = parse_cmd("pwd", Some("git"));
+        let ctx = create_ctx("git", &[]);
+        let action = parse_cmd("pwd", ctx.as_ref());
         match action {
             CommandAction::Pwd(_) => {} // OK
-            _ => panic!("Expected Pwd action (priority check), got {:?}", action),
+            _ => panic!("Expected Pwd action, got {:?}", action),
         }
     }
 
     // --- OS依存処理 (Windowsパス置換) テスト ---
 
-    /// Windows環境でのパス置換テスト
-    /// `\` が `/` に置換され、文字消滅が防げているか
     #[test]
     #[cfg(windows)]
     fn test_windows_path_conversion() {
-        // Input: "add src\main.rs"
-        // Expected: git add src/main.rs
-        let action = parse_cmd("add src\\main.rs", Some("git"));
+        let ctx = create_ctx("git", &[]);
+        let action = parse_cmd("add src\\main.rs", ctx.as_ref());
         assert_execute(action, "git", &["add", "src/main.rs"]);
     }
 
-    /// 非Windows環境でのパス処理テスト
-    /// `\` はエスケープ文字として扱われ、文字が消える（標準仕様通り）か
     #[test]
     #[cfg(not(windows))]
     fn test_unix_path_handling() {
-        // Input: "add src\main.rs" -> "srcmain.rs"
-        let action = parse_cmd("add src\\main.rs", Some("git"));
+        let ctx = create_ctx("git", &[]);
+        let action = parse_cmd("add src\\main.rs", ctx.as_ref());
         assert_execute(action, "git", &["add", "srcmain.rs"]);
     }
 }
