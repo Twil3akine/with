@@ -39,7 +39,7 @@ fn print_help() {
 
 // --- メインループ ---
 /// REPL（対話型ループ）のメインロジック
-fn run_repl(target_cmd: Option<&str>, base_path: &Path) -> Result<()> {
+fn run_repl(target_ctx: Option<&TargetContext>, base_path: &Path) -> Result<()> {
     let config = Config::builder()
         .history_ignore_space(true)
         .completion_type(CompletionType::List)
@@ -71,9 +71,19 @@ fn run_repl(target_cmd: Option<&str>, base_path: &Path) -> Result<()> {
             (None, None) => None,
         };
 
-        let prompt = match (target_cmd, context_info) {
-            (Some(cmd), Some(info)) => format!("({}) {}> ", info, cmd),
-            (Some(cmd), None) => format!("{}> ", cmd),
+        let prompt_cmd_str = if let Some(ctx) = target_ctx {
+            if ctx.args.is_empty() {
+                ctx.program.clone()
+            } else {
+                format!("{} {}", ctx.program, ctx.args.join(" "))
+            }
+        } else {
+            String::new()
+        };
+
+        let prompt = match (target_ctx, context_info) {
+            (Some(_cmd), Some(info)) => format!("({}) {}> ", info, prompt_cmd_str),
+            (Some(_cmd), None) => format!("{}> ", prompt_cmd_str),
             (None, Some(info)) => format!("({}) > ", info),
             (None, None) => "> ".to_string(),
         };
@@ -89,7 +99,7 @@ fn run_repl(target_cmd: Option<&str>, base_path: &Path) -> Result<()> {
                     rl.add_history_entry(line)?;
                 }
 
-                let action = parse_cmd(line, target_cmd);
+                let action = parse_cmd(line, target_ctx);
 
                 match action {
                     CommandAction::Execute { program, args } => {
@@ -147,21 +157,26 @@ fn main() {
     // コマンドライン引数を取得
     let args: Vec<String> = env::args().collect::<Vec<String>>();
 
-    // 引数が足りない場合（自分自身 + コマンド名 の2つ必要）
-    if args.len() > 2 {
-        eprintln!("Usage: with none | <COMMAND>");
-        process::exit(1);
-    }
+    let target_ctx: Option<TargetContext> = if args.len() >= 2 {
+        let joined_args = args[1..].join(" ");
 
-    let target_cmd: Option<&str> = if args.len() >= 2 {
-        Some(&args[1])
+        let split_args = shell_words::split(&joined_args).unwrap_or_default();
+
+        if split_args.is_empty() {
+            None
+        } else {
+            Some(TargetContext {
+                program: split_args[0].clone(),
+                args: split_args[1..].to_vec(),
+            })
+        }
     } else {
         None
     };
+
     let base_path = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
 
-    // REPLを実行し、エラーがあれば表示して終了コード1で終わる
-    if let Err(e) = run_repl(target_cmd, &base_path) {
+    if let Err(e) = run_repl(target_ctx.as_ref(), &base_path) {
         eprintln!("Application error: {}", e);
         process::exit(1);
     }
