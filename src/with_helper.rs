@@ -175,3 +175,129 @@ pub fn get_subcommands(command: &str) -> Vec<&str> {
         _ => vec![],
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rustyline::Context;
+    use rustyline::history::DefaultHistory;
+
+    // テスト用のヘルパー作成関数
+    fn create_helper(context_program: Option<&str>) -> WithHelper {
+        WithHelper {
+            completer: FilenameCompleter::new(),
+            context_program: context_program.map(|s| s.to_string()),
+        }
+    }
+
+    // 補完結果に特定の文字列が含まれているかチェックする
+    fn assert_contains(candidates: &[Pair], value: &str) {
+        let found = candidates.iter().any(|p| p.replacement == value);
+        let debug_list: Vec<&str> = candidates.iter().map(|p| p.replacement.as_str()).collect();
+        assert!(
+            found,
+            "Expected completion '{}' not found in {:?}",
+            value, debug_list
+        );
+    }
+
+    // 補完結果に特定の文字列が含まれて *いない* ことチェックする
+    fn assert_not_contains(candidates: &[Pair], value: &str) {
+        let found = candidates.iter().any(|p| p.replacement == value);
+        assert!(!found, "Unexpected completion '{}' found", value);
+    }
+
+    #[test]
+    fn test_context_mode_subcommand() {
+        // ケース: `with git` で起動中 (context_program = "git")
+        let helper = create_helper(Some("git"));
+        let history = DefaultHistory::new();
+        let ctx = Context::new(&history);
+
+        // 1. "st" と入力 -> "status" が出るべき (index 0)
+        let line = "st";
+        let pos = line.len();
+        let (start, res) = helper.complete(line, pos, &ctx).unwrap();
+
+        // start位置は 0 (先頭から置換)
+        assert_eq!(start, 0);
+        assert_contains(&res, "status");
+
+        // 2. "status " (スペースあり) -> サブコマンド補完は出ないべき (index 1)
+        // ※実際にはファイル補完が走るが、ここでは "status" 等が出ないことを確認
+        let line = "status ";
+        let pos = line.len();
+        let (_, res) = helper.complete(line, pos, &ctx).unwrap();
+
+        // 次の引数には "status" コマンドは提案されないはず
+        assert_not_contains(&res, "status");
+    }
+
+    #[test]
+    fn test_no_context_mode_subcommand() {
+        // ケース: `with` 単体起動 (context_program = None)
+        let helper = create_helper(None);
+        let history = DefaultHistory::new();
+        let ctx = Context::new(&history);
+
+        // 1. "git " (スペース直後) -> "status" 等が出るべき (index 1)
+        let line = "git ";
+        let pos = line.len();
+        let (start, res) = helper.complete(line, pos, &ctx).unwrap();
+
+        // start位置は pos と同じ (現在のカーソル位置から挿入)
+        assert_eq!(start, pos);
+        assert_contains(&res, "status");
+        assert_contains(&res, "commit");
+
+        // 2. "git st" -> "status" が出るべき
+        let line = "git st";
+        let pos = line.len();
+        let (start, res) = helper.complete(line, pos, &ctx).unwrap();
+
+        // "git " の長さは4なので、4バイト目から置換開始
+        assert_eq!(start, 4);
+        assert_contains(&res, "status");
+
+        // 3. "cargo b" -> "build", "bench" が出るべき
+        let line = "cargo b";
+        let pos = line.len();
+        let (_, res) = helper.complete(line, pos, &ctx).unwrap();
+
+        assert_contains(&res, "build");
+        assert_contains(&res, "bench");
+        // cargoの補完リストに "status" はないはず
+        assert_not_contains(&res, "status");
+    }
+
+    #[test]
+    fn test_ignore_other_args() {
+        // ケース: 第3引数以降は反応しない
+        let helper = create_helper(None);
+        let history = DefaultHistory::new();
+        let ctx = Context::new(&history);
+
+        // "git commit -m" -> ここで "status" とか出ると困る
+        let line = "git commit -m";
+        let pos = line.len();
+        let (_, res) = helper.complete(line, pos, &ctx).unwrap();
+
+        assert_not_contains(&res, "status");
+        assert_not_contains(&res, "commit");
+    }
+
+    #[test]
+    fn test_unknown_command() {
+        // 未登録のコマンド
+        let helper = create_helper(None);
+        let history = DefaultHistory::new();
+        let ctx = Context::new(&history);
+
+        let line = "unknown_cmd ";
+        let pos = line.len();
+        let (_, res) = helper.complete(line, pos, &ctx).unwrap();
+
+        // 何もカスタム補完されない（ファイル補完に落ちる）
+        assert_not_contains(&res, "status");
+    }
+}
