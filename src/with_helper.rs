@@ -6,7 +6,7 @@ use rustyline::{
 use std::{
     borrow::Cow,
     iter::{IntoIterator, Iterator},
-    option::Option::{self, Some},
+    option::Option::{self, None, Some},
     vec::Vec,
 };
 
@@ -19,8 +19,10 @@ pub struct WithHelper {
 
 // プロンプトの色付け用
 const COLOR_GREEN: &str = "\x1b[32m";
-const COLOR_CYAN: &str = "\x1b[36m";
+const COLOR_YELLOW: &str = "\x1b[33m";
 const COLOR_MAGENTA: &str = "\x1b[35m";
+const COLOR_CYAN: &str = "\x1b[36m";
+const COLOR_WHITE: &str = "\x1b[37m";
 const STYLE_BOLD: &str = "\x1b[1m";
 const STYLE_RESET: &str = "\x1b[0m";
 
@@ -91,6 +93,126 @@ impl Completer for WithHelper {
 }
 
 impl Highlighter for WithHelper {
+    fn highlight<'l>(&self, line: &'l str, _pos: usize) -> Cow<'l, str> {
+        // 色付けする必要がない（空行など）場合はそのまま返す
+        if line.trim().is_empty() {
+            return Cow::Borrowed(line);
+        }
+
+        // 単語の境界（開始位置と終了位置）を探す簡易パーサ
+        // ※ shell_words::split だと空白が消えてしまうため、表示用に位置だけ特定する
+        let mut word_ranges = Vec::new();
+        let mut in_word = false;
+        let mut start_idx = 0;
+        let mut in_quote = None; // クォート内判定用
+
+        for (i, c) in line.char_indices() {
+            if let Some(q) = in_quote {
+                if c == q {
+                    in_quote = None; // クォート終了
+                }
+            } else if c == '"' || c == '\'' {
+                in_quote = Some(c); // クォート開始
+                if !in_word {
+                    start_idx = i;
+                    in_word = true;
+                }
+            } else if c.is_whitespace() {
+                if in_word {
+                    word_ranges.push((start_idx, i)); // 単語の終わり
+                    in_word = false;
+                }
+            } else if !in_word {
+                start_idx = i; // 単語の始まり
+                in_word = true;
+            }
+        }
+        // 最後の単語を処理
+        if in_word {
+            word_ranges.push((start_idx, line.len()));
+        }
+
+        // --- 色判定 ---
+        // 親コマンド名の特定
+        let parent_cmd_name = if let Some(ctx_prog) = &self.context_program {
+            Some(ctx_prog.as_str())
+        } else if !word_ranges.is_empty() {
+            let (s, e) = word_ranges[0];
+            Some(&line[s..e])
+        } else {
+            None
+        };
+
+        // 親コマンドがサブコマンドを持つコマンドかを確認
+        let expects_subcommand = parent_cmd_name
+            .map(|name| !get_subcommands(name).is_empty())
+            .unwrap_or(false);
+
+        // 何番目の単語をどう色付けするか決める
+        let (prog_idx, subcmd_idx) = if self.context_program.is_some() {
+            // Case A: `with git` (コンテキストあり)
+            // 0番目の単語 = サブコマンド (例: "status")
+            (None, if expects_subcommand { Some(0) } else { None })
+        } else {
+            // Case B: `with` 単体 (コンテキストなし)
+            // 0番目の単語 = 親コマンド (例: "git")
+            // 1番目の単語 = サブコマンド (例: "status")
+            (Some(0), if expects_subcommand { Some(1) } else { None })
+        };
+
+        // 文字列を再構築する
+        let mut new_line = String::with_capacity(line.len() + 20);
+        let mut last_idx = 0;
+
+        for (i, (start, end)) in word_ranges.iter().enumerate() {
+            // 前の単語との間の空白などを追加
+            new_line.push_str(&line[last_idx..*start]);
+
+            let word = &line[*start..*end];
+
+            // 色を決定
+            if Some(i) == prog_idx {
+                // 親コマンド: 緑
+                new_line.push_str(COLOR_CYAN);
+                new_line.push_str(word);
+                new_line.push_str(STYLE_RESET);
+            } else if Some(i) == subcmd_idx {
+                // サブコマンド: シアン
+                new_line.push_str(COLOR_GREEN);
+                new_line.push_str(word);
+                new_line.push_str(STYLE_RESET);
+            } else if word.starts_with('"') || word.starts_with('\'') {
+                new_line.push_str(COLOR_WHITE);
+                new_line.push_str(word);
+                new_line.push_str(STYLE_RESET);
+            } else if word.starts_with('-') {
+                // オプション引数: 黄色
+                new_line.push_str(COLOR_YELLOW);
+                new_line.push_str(word);
+                new_line.push_str(STYLE_RESET);
+            } else {
+                // その他: そのまま
+                new_line.push_str(word);
+            }
+
+            last_idx = *end;
+        }
+
+        // 末尾の残りの文字（空白など）を追加
+        new_line.push_str(&line[last_idx..]);
+
+        Cow::Owned(new_line)
+    }
+
+    fn highlight_char(
+        &self,
+        _line: &str,
+        _pos: usize,
+        _kind: rustyline::highlight::CmdKind,
+    ) -> bool {
+        true
+    }
+
     fn highlight_prompt<'b, 's: 'b, 'p: 'b>(
         &'s self,
         prompt: &'p str,
