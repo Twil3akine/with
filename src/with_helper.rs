@@ -422,4 +422,94 @@ mod tests {
         // 何もカスタム補完されない（ファイル補完に落ちる）
         assert_not_contains(&res, "status");
     }
+
+    // --- ハイライト（色付け）のテスト ---
+
+    #[test]
+    fn test_highlight_registered_subcommand() {
+        // ケース: git status (登録済みコマンド + サブコマンド)
+        let helper = create_helper(None);
+        let line = "git status";
+        let highlighted = helper.highlight(line, 0);
+
+        // 親コマンド(git)は GREEN
+        assert!(
+            highlighted.contains(COLOR_GREEN),
+            "Parent cmd should be green"
+        );
+        assert!(highlighted.contains("git"));
+
+        // サブコマンド(status)は CYAN
+        assert!(
+            highlighted.contains(COLOR_CYAN),
+            "Subcommand should be cyan"
+        );
+        assert!(highlighted.contains("status"));
+    }
+
+    #[test]
+    fn test_highlight_normal_argument() {
+        // ケース: mkdir my_folder (登録なしコマンド + 通常引数)
+        // mkdir は get_subcommands に登録されていない想定
+        let helper = create_helper(None);
+        let line = "mkdir my_folder";
+        let highlighted = helper.highlight(line, 0);
+
+        // 親コマンド(mkdir)は GREEN (1単語目は常にGreen判定のため)
+        assert!(highlighted.contains(COLOR_GREEN));
+        assert!(highlighted.contains("mkdir"));
+
+        // 引数(my_folder)はデフォルト色のまま (CYANが含まれていないこと)
+        // ※「my_folder」という単語の前後に色コードがないことを確認
+        assert!(!highlighted.contains(&format!("{}{}", COLOR_CYAN, "my_folder")));
+    }
+
+    #[test]
+    fn test_highlight_flags() {
+        // ケース: -v や --help (フラグ)
+        let helper = create_helper(None);
+        let line = "ls -v --help";
+        let highlighted = helper.highlight(line, 0);
+
+        // ls は GREEN
+        assert!(highlighted.contains("ls"));
+
+        // -v, --help は YELLOW
+        assert!(highlighted.contains(COLOR_YELLOW));
+        assert!(highlighted.contains("-v"));
+        assert!(highlighted.contains("--help"));
+    }
+
+    #[test]
+    fn test_highlight_quotes() {
+        // ケース: echo "hello world" (文字列リテラル)
+        let helper = create_helper(None);
+        let line = "echo \"hello world\"";
+        let highlighted = helper.highlight(line, 0);
+
+        // "hello world" は MAGENTA
+        assert!(
+            highlighted.contains(COLOR_MAGENTA),
+            "Quoted string should be magenta"
+        );
+        assert!(highlighted.contains("\"hello world\""));
+
+        // echo は GREEN
+        assert!(highlighted.contains(COLOR_GREEN));
+    }
+
+    #[test]
+    fn test_highlight_context_mode() {
+        // ケース: with git 起動中に "status" と入力
+        let helper = create_helper(Some("git"));
+        let line = "status";
+        let highlighted = helper.highlight(line, 0);
+
+        // contextがあるので、0単語目("status")がいきなりサブコマンド扱い(CYAN)になる
+        assert!(highlighted.contains(COLOR_CYAN));
+        assert!(highlighted.contains("status"));
+
+        // 親コマンドの色(GREEN)は使われないはず
+        assert!(!highlighted.contains(COLOR_GREEN));
+    }
 }
