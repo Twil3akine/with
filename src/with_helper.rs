@@ -549,17 +549,17 @@ mod tests {
         let line = "git status";
         let highlighted = helper.highlight(line, 0);
 
-        // 親コマンド(git)は GREEN
+        // 親コマンド(git, $1)は CYAN
         assert!(
-            highlighted.contains(COLOR_GREEN),
-            "Parent cmd should be green"
+            highlighted.contains(COLOR_CYAN),
+            "Parent cmd should be cyan"
         );
         assert!(highlighted.contains("git"));
 
-        // サブコマンド(status)は CYAN
+        // サブコマンド(status, $2)は GREEN
         assert!(
-            highlighted.contains(COLOR_CYAN),
-            "Subcommand should be cyan"
+            highlighted.contains(COLOR_GREEN),
+            "Subcommand should be green"
         );
         assert!(highlighted.contains("status"));
     }
@@ -572,13 +572,12 @@ mod tests {
         let line = "mkdir my_folder";
         let highlighted = helper.highlight(line, 0);
 
-        // 親コマンド(mkdir)は GREEN (1単語目は常にGreen判定のため)
-        assert!(highlighted.contains(COLOR_GREEN));
+        // 親コマンド(mkdir, $1)は CYAN
+        assert!(highlighted.contains(COLOR_CYAN));
         assert!(highlighted.contains("mkdir"));
 
-        // 引数(my_folder)はデフォルト色のまま (CYANが含まれていないこと)
-        // ※「my_folder」という単語の前後に色コードがないことを確認
-        assert!(!highlighted.contains(&format!("{}{}", COLOR_CYAN, "my_folder")));
+        // 引数(my_folder)はデフォルト色のまま (GREENが含まれていないこと)
+        assert!(!highlighted.contains(&format!("{}{}", COLOR_GREEN, "my_folder")));
     }
 
     #[test]
@@ -588,7 +587,7 @@ mod tests {
         let line = "ls -v --help";
         let highlighted = helper.highlight(line, 0);
 
-        // ls は GREEN
+        // ls は CYAN
         assert!(highlighted.contains("ls"));
 
         // -v, --help は YELLOW
@@ -604,15 +603,15 @@ mod tests {
         let line = "echo \"hello world\"";
         let highlighted = helper.highlight(line, 0);
 
-        // "hello world" は MAGENTA
+        // "hello world" は WHITE
         assert!(
-            highlighted.contains(COLOR_MAGENTA),
-            "Quoted string should be magenta"
+            highlighted.contains(COLOR_WHITE),
+            "Quoted string should be white"
         );
         assert!(highlighted.contains("\"hello world\""));
 
-        // echo は GREEN
-        assert!(highlighted.contains(COLOR_GREEN));
+        // echo は CYAN
+        assert!(highlighted.contains(COLOR_CYAN));
     }
 
     #[test]
@@ -622,11 +621,11 @@ mod tests {
         let line = "status";
         let highlighted = helper.highlight(line, 0);
 
-        // contextがあるので、0単語目("status")がいきなりサブコマンド扱い(CYAN)になる
-        assert!(highlighted.contains(COLOR_CYAN));
+        // contextがあるので、0単語目("status")はサブコマンド($2)扱い -> GREEN
+        assert!(highlighted.contains(COLOR_GREEN));
         assert!(highlighted.contains("status"));
 
-        // 親コマンドの色(GREEN)は使われないはず
-        assert!(!highlighted.contains(COLOR_GREEN));
+        // 親コマンド($1)の色(CYAN)は使われないはず
+        assert!(!highlighted.contains(COLOR_CYAN));
     }
 }
