@@ -30,7 +30,7 @@ Rust（Cargo）環境がある場合は、ソースからビルドすること�
 
 ```bash
 # 1. リポジトリをクローン
-git clone [https://github.com/Twil3akine/with.git](https://github.com/Twil3akine/with.git)
+git clone https://github.com/Twil3akine/with.git
 cd with
 
 # 2. リリースビルド & インストール
@@ -87,6 +87,9 @@ $ with git
 
 # 引数部分ではファイル名が補完されます
 (.: main) git > add RE<Tab>   # -> README.md
+
+# 対話モードを終了
+(.: main) git > exit
 ```
 
 ### 補完・ハイライト対応コマンド
@@ -109,7 +112,7 @@ $ with git
 - `clear` / `cls`: 画面をクリアします。
 - `pwd`: 現在のディレクトリパスを表示します。
 - `help`: ヘルプメッセージを表示します。
-- `exit` / `q`: アプリケーションを終了します。
+- `exit(e)` / `quit(q)`: アプリケーションを終了します。
 
 ## 🛠️ 技術スタック
 
