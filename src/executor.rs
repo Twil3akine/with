@@ -1,3 +1,4 @@
+use std::env;
 use std::process;
 
 #[cfg(target_os = "windows")]
@@ -16,11 +17,25 @@ fn resolve_program(program: &str) -> String {
 // --- コマンド実行処理 ---
 /// 指定されたプログラムを子プロセスとして実行する関数
 /// 失敗しても親プロセス（このREPL）はクラッシュさせない
-pub fn execute_child_process(program: &str, args: Vec<String>) {
+pub fn execute_child_process(program: &str, args: Vec<String>, current_context_prog: Option<&str>) {
     let program_path = resolve_program(program);
 
     let mut command = process::Command::new(program_path);
     command.args(args);
+
+    // 現在のスタックを取得
+    let parent_stack = env::var("WITH_CONTEXT_STACK").unwrap_or_default();
+
+    // 新しいスタックを構築
+    if let Some(ctx) = current_context_prog {
+        let new_stack = if parent_stack.is_empty() {
+            ctx.to_string()
+        } else {
+            format!("{}/{}", parent_stack, ctx)
+        };
+        // 子プロセスに環境変数をセット
+        command.env("WITH_CONTEXT_STACK", new_stack);
+    }
 
     // spawn() でプロセスを開始
     match command.spawn() {
