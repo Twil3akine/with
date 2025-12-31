@@ -150,6 +150,9 @@ fn run_repl(target_ctx: Option<&TargetContext>, base_path: &Path) -> Result<()> 
                     }
                     CommandAction::DoNothing => {}
                     CommandAction::Exit => break,
+                    CommandAction::ExitAll => {
+                        process::exit(127);
+                    }
                     CommandAction::Error(msg) => eprintln!("Error: {}", msg),
                 }
             }

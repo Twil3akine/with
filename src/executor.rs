@@ -51,8 +51,18 @@ pub fn execute_child_process(program: &str, args: Vec<String>, current_context_p
     match command.spawn() {
         Ok(mut child) => {
             // wait() で子プロセスの終了を待機する（これがないと入力待ちとかぶる）
-            if let Err(e) = child.wait() {
-                eprintln!("Error waiting for process: {}", e);
+            match child.wait() {
+                Ok(status) => {
+                    // 子プロセスが全終了で死んだら自分も後追う
+                    if let Some(code) = status.code() {
+                        if code == 127 {
+                            process::exit(127);
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Error waiting for process: {}", e);
+                }
             }
         }
         Err(e) => {

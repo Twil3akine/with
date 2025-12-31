@@ -10,6 +10,7 @@ pub enum CommandAction {
     History,
     DoNothing,
     Exit,
+    ExitAll,
     Error(String),
 }
 
@@ -18,9 +19,6 @@ pub struct TargetContext {
     pub program: String,
     pub args: Vec<String>,
 }
-
-// 終了判定に使うコマンドのリスト
-const EXIT_COMMANDS: [&str; 4] = ["e", "q", "exit", "quit"];
 
 /// 入力行とターゲットコマンドを受け取り、アクションを返す
 pub fn parse_cmd(line: &str, context: Option<&TargetContext>) -> CommandAction {
@@ -34,9 +32,11 @@ pub fn parse_cmd(line: &str, context: Option<&TargetContext>) -> CommandAction {
     #[cfg(windows)]
     let line = line_owned.as_str();
 
-    // 終了コマンドかどうかチェック
-    if EXIT_COMMANDS.contains(&line) {
-        return CommandAction::Exit;
+    // 終了コマンドの判定
+    match line {
+        "exit" | "e" => return CommandAction::ExitAll,
+        "quit" | "q" => return CommandAction::Exit,
+        _ => {}
     }
 
     // 引数を分割
