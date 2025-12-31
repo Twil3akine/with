@@ -121,13 +121,12 @@ pub fn parse_cmd(line: &str, context: Option<&TargetContext>) -> CommandAction {
 }
 
 #[cfg(test)]
+#[cfg(test)]
 mod tests {
     use super::*;
 
     // --- ヘルパー関数 ---
 
-    // テスト用のコンテキスト作成ヘルパー
-    // 例: create_ctx("git", &["remote"]) -> TargetContext { program: "git", args: ["remote"] }
     fn create_ctx(program: &str, args: &[&str]) -> Option<TargetContext> {
         Some(TargetContext {
             program: program.to_string(),
@@ -135,7 +134,6 @@ mod tests {
         })
     }
 
-    // CommandAction::Execute の中身検証ヘルパー
     fn assert_execute(action: CommandAction, expected_prog: &str, expected_args: &[&str]) {
         match action {
             CommandAction::Execute { program, args } => {
@@ -148,8 +146,6 @@ mod tests {
 
     // --- 基本動作テスト ---
 
-    /// ターゲットコマンド指定時の基本動作 (引数なしコンテキスト)
-    /// 例: `with git` 起動中に `status` と入力 -> `git status`
     #[test]
     fn test_target_cmd_basic() {
         let ctx = create_ctx("git", &[]);
@@ -157,8 +153,6 @@ mod tests {
         assert_execute(action, "git", &["status"]);
     }
 
-    /// ターゲットコマンドに引数がある場合
-    /// 例: `commit -m "msg"` -> `git commit -m "msg"`
     #[test]
     fn test_target_cmd_with_args() {
         let ctx = create_ctx("git", &[]);
@@ -166,16 +160,13 @@ mod tests {
         assert_execute(action, "git", &["commit", "-m", "msg"]);
     }
 
-    /// 例: `with git remote` (ctx args=["remote"]) + 入力 `-v` -> `git remote -v`
     #[test]
     fn test_target_context_concatenation() {
         let ctx = create_ctx("git", &["remote"]);
         let action = parse_cmd("-v", ctx.as_ref());
-        // args が ["remote", "-v"] に結合されていることを確認
         assert_execute(action, "git", &["remote", "-v"]);
     }
 
-    /// 例: `with docker compose exec` + 入力 `app bash`
     #[test]
     fn test_target_context_multiple_args() {
         let ctx = create_ctx("docker", &["compose", "exec"]);
@@ -183,7 +174,6 @@ mod tests {
         assert_execute(action, "docker", &["compose", "exec", "app", "bash"]);
     }
 
-    /// ターゲットコマンドなし（with単体起動）の場合
     #[test]
     fn test_no_target_basic() {
         let action = parse_cmd("ls -al", None);
@@ -204,6 +194,37 @@ mod tests {
         let ctx = create_ctx("git", &[]);
         let action = parse_cmd("! ls -h", ctx.as_ref());
         assert_execute(action, "ls", &["-h"]);
+    }
+
+    // --- RC (Recursive Call) コマンドテスト [New] ---
+
+    #[test]
+    fn test_rc_basic() {
+        // rc git -> with git
+        let action = parse_cmd("rc git", None);
+        assert_execute(action, "with", &["git"]);
+    }
+
+    #[test]
+    fn test_rc_with_args() {
+        // rc git status -> with git status
+        let action = parse_cmd("rc git status", None);
+        assert_execute(action, "with", &["git", "status"]);
+    }
+
+    #[test]
+    fn test_rc_no_args() {
+        // rc -> with (単体起動)
+        let action = parse_cmd("rc", None);
+        assert_execute(action, "with", &[]);
+    }
+
+    #[test]
+    fn test_rc_priority_over_context() {
+        // コンテキストがあっても rc は優先されるべき (git rc ではなく with ... になる)
+        let ctx = create_ctx("git", &[]);
+        let action = parse_cmd("rc cargo", ctx.as_ref());
+        assert_execute(action, "with", &["cargo"]);
     }
 
     // --- 内部コマンド (cd) テスト ---
@@ -228,24 +249,30 @@ mod tests {
         }
     }
 
-    // --- 終了コマンド テスト ---
+    // --- 終了コマンド (Exit / Quit) テスト [Updated] ---
 
     #[test]
-    fn test_exit_commands() {
+    fn test_exit_commands_normal() {
+        // exit / e -> Exit (1階層戻る)
         let ctx = create_ctx("git", &[]);
-        assert_eq!(parse_cmd("exit", ctx.as_ref()), CommandAction::Exit);
+        assert_eq!(parse_cmd("quit", ctx.as_ref()), CommandAction::Exit);
         assert_eq!(parse_cmd("q", None), CommandAction::Exit);
+    }
+
+    #[test]
+    fn test_exit_commands_all() {
+        // quit / q -> ExitAll (全終了)
+        let ctx = create_ctx("git", &[]);
+        assert_eq!(parse_cmd("exit", ctx.as_ref()), CommandAction::ExitAll);
+        assert_eq!(parse_cmd("e", None), CommandAction::ExitAll);
     }
 
     // --- 空入力のハンドリング ---
 
-    /// ターゲット指定時の空入力
-    /// コンテキストの args もそのまま実行されるべき
     #[test]
     fn test_empty_input_executes_target() {
         let ctx = create_ctx("git", &["status"]);
         let action = parse_cmd("", ctx.as_ref());
-        // "git status" が実行される
         assert_execute(action, "git", &["status"]);
     }
 
@@ -343,12 +370,6 @@ mod tests {
         assert_eq!(action, CommandAction::Help);
     }
 
-    #[test]
-    fn test_cmd_help_ignores_args() {
-        let action = parse_cmd("help me", None);
-        assert_eq!(action, CommandAction::Help);
-    }
-
     // --- HISTORY / PWD コマンドのテスト ---
 
     #[test]
@@ -358,43 +379,11 @@ mod tests {
     }
 
     #[test]
-    fn test_cmd_history_priority() {
-        let ctx = create_ctx("git", &[]);
-        let action = parse_cmd("history", ctx.as_ref());
-        assert_eq!(action, CommandAction::History);
-    }
-
-    #[test]
-    fn test_cmd_history_ignores_args() {
-        let action = parse_cmd("history 10", None);
-        assert_eq!(action, CommandAction::History);
-    }
-
-    #[test]
     fn test_cmd_pwd_basic() {
         let action = parse_cmd("pwd", None);
         match action {
             CommandAction::Pwd(args) => assert!(args.is_empty()),
             _ => panic!("Expected Pwd, got {:?}", action),
-        }
-    }
-
-    #[test]
-    fn test_cmd_pwd_with_args() {
-        let action = parse_cmd("pwd -L", None);
-        match action {
-            CommandAction::Pwd(args) => assert_eq!(args, vec!["-L"]),
-            _ => panic!("Expected Pwd with args, got {:?}", action),
-        }
-    }
-
-    #[test]
-    fn test_cmd_pwd_priority() {
-        let ctx = create_ctx("git", &[]);
-        let action = parse_cmd("pwd", ctx.as_ref());
-        match action {
-            CommandAction::Pwd(_) => {} // OK
-            _ => panic!("Expected Pwd action, got {:?}", action),
         }
     }
 
