@@ -29,10 +29,19 @@ pub fn execute_child_process(program: &str, args: Vec<String>, current_context_p
     // 新しいスタックを構築
     let new_stack = match parent_stack {
         Some(parent) => {
-            let ctx = current_context_prog.unwrap_or("");
-            format!("{}/{}", parent, ctx)
+            if let Some(ctx) = current_context_prog {
+                format!("{}/{}", parent, ctx)
+            } else {
+                format!("{}/", parent)
+            }
         }
-        None => String::new(),
+        None => {
+            if let Some(ctx) = current_context_prog {
+                ctx.to_string()
+            } else {
+                String::new()
+            }
+        }
     };
 
     // 環境変数が空じゃないならセットする
