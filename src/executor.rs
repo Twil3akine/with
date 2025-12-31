@@ -69,11 +69,11 @@ pub fn execute_child_process(program: &str, args: Vec<String>, current_context_p
             // wait() で子プロセスの終了を待機する
             match child.wait() {
                 Ok(status) => {
-                    // 子プロセスが「全終了(100)」で死んだ場合、自分も後を追う
-                    if let Some(code) = status.code() {
-                        if code == 100 {
-                            process::exit(100);
-                        }
+                    // 子プロセスが「全終了(127)」で死んだ場合、自分も後を追う
+                    if let Some(code) = status.code()
+                        && code == 127
+                    {
+                        process::exit(127);
                     }
                 }
                 Err(e) => {
