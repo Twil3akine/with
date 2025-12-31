@@ -219,15 +219,15 @@ impl Highlighter for WithHelper {
         _default: bool,
     ) -> Cow<'b, str> {
         if let Some(end_arrow) = prompt.rfind("> ") {
+            // パターン1: ディレクトリ情報あり "(.: branch) git/cargo >"
             if prompt.starts_with('(') {
                 if let Some(close_paren) = prompt.find(") ") {
-                    // カッコの中身全体を取得 (例: "src : main" または "src")
+                    // --- ディレクトリ表示部分 (既存のまま) ---
                     let content_inside = &prompt[1..close_paren];
 
                     let styled_content = if let Some(sep_idx) = content_inside.find(": ") {
-                        // "src : main" のように区切りがある場合
                         let path_part = &content_inside[0..sep_idx];
-                        let branch_part = &content_inside[sep_idx + 2..]; // ": " は2文字
+                        let branch_part = &content_inside[sep_idx + 2..];
 
                         format!(
                             "{}{}{}{}{}: {}{}{}",
@@ -241,34 +241,63 @@ impl Highlighter for WithHelper {
                             STYLE_RESET // Reset before ')'
                         )
                     } else {
-                        // "src" だけの場合
                         format!("{}{}{}", COLOR_GREEN, content_inside, STYLE_RESET)
                     };
+                    // -------------------------------------
 
-                    // コマンド部分の取得 logic
                     let cmd_start = close_paren + 2;
                     let cmd_part = &prompt[cmd_start..end_arrow];
 
+                    // 最後のスラッシュで分割
+                    // 例: "//git" -> parent="/", current="git" -> path_str="//", current_str="git"
+                    let (path_str, current_str) =
+                        if let Some((parent, current)) = cmd_part.rsplit_once('/') {
+                            (format!("{}/", parent), current)
+                        } else {
+                            (String::new(), cmd_part)
+                        };
+
+                    // ★修正済み: フォーマット指定子 {} の数を引数に合わせています
                     let styled = format!(
-                        "{}({}) {}{}{}{}{}{}> ",
-                        STYLE_BOLD,     // (
-                        styled_content, // 中身（色付き済み）
-                        STYLE_BOLD,     // )
-                        COLOR_CYAN,     // cmd color
-                        cmd_part,
-                        STYLE_RESET, // cmd color reset
-                        STYLE_BOLD,  // >
-                        STYLE_RESET  // reset all
+                        "{}({}) {}{}{}{}{}{}{}{}> {}", // {} を1つ追加 (合計11個)
+                        STYLE_BOLD,                    // 1: (
+                        styled_content,                // 2: dir info
+                        STYLE_BOLD,                    // 3: )
+                        STYLE_RESET,                   // ★4: 追加！ ここで一度太字をリセットします
+                        COLOR_CYAN,                    // 5: path color
+                        path_str,                      // 6: path string (これで細字+水色になります)
+                        STYLE_BOLD,                    // 7: current bold
+                        current_str,                   // 8: current string (これは太字+水色)
+                        STYLE_RESET,                   // 9: reset current
+                        STYLE_BOLD,                    // 10: >
+                        STYLE_RESET                    // 11: reset all
                     );
                     return Cow::Owned(styled);
                 }
             }
-            // ... (パターン2: ディレクトリ表示なしの場合は既存のまま) ...
+            // パターン2: ディレクトリ情報なし "git/cargo >"
             else {
                 let cmd_part = &prompt[0..end_arrow];
+
+                let (path_str, current_str) =
+                    if let Some((parent, current)) = cmd_part.rsplit_once('/') {
+                        (format!("{}/", parent), current)
+                    } else {
+                        (String::new(), cmd_part)
+                    };
+
+                // ★修正済み: こちらも {} の数を修正
                 let styled = format!(
-                    "{}{}{}{}{}{}> ",
-                    STYLE_BOLD, COLOR_CYAN, cmd_part, STYLE_RESET, STYLE_BOLD, STYLE_RESET
+                    "{}{}{}{}{}{}{}{}> {}",
+                    STYLE_BOLD,  // 1: Bold start
+                    STYLE_RESET, // 2: Reset (safety)
+                    COLOR_CYAN,  // 3: Color
+                    path_str,    // 4: path (Fine)
+                    STYLE_BOLD,  // 5: current Bold
+                    current_str, // 6: current
+                    STYLE_RESET, // 7: reset
+                    STYLE_BOLD,  // 8: >
+                    STYLE_RESET  // 9: reset all
                 );
                 return Cow::Owned(styled);
             }

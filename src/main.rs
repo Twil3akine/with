@@ -74,22 +74,39 @@ fn run_repl(target_ctx: Option<&TargetContext>, base_path: &Path) -> Result<()> 
             (None, None) => None,
         };
 
+        let env_stack = env::var("WITH_CONTEXT_STACK").ok();
+
         let prompt_cmd_str = if let Some(ctx) = target_ctx {
-            if ctx.args.is_empty() {
-                ctx.program.clone()
+            // 親スタックがある場合は結合して表示 (exp. git/cargo)
+            let full_context = if let Some(stack) = &env_stack {
+                format!("{}/{}", stack, ctx.program)
             } else {
-                format!("{} {}", ctx.program, ctx.args.join(" "))
+                ctx.program.clone()
+            };
+
+            if ctx.args.is_empty() {
+                full_context
+            } else {
+                format!("{} {}", full_context, ctx.args.join(" "))
             }
         } else {
-            String::new()
+            // コンテキストがなくても文字列を追加
+            if let Some(stack) = &env_stack {
+                format!("{}/", stack)
+            } else {
+                String::new()
+            }
         };
 
         let prompt = match (target_ctx, context_info) {
             (Some(_cmd), Some(info)) => format!("({}) {}> ", info, prompt_cmd_str),
             (Some(_cmd), None) => format!("{}> ", prompt_cmd_str),
-            (None, Some(info)) => format!("({}) > ", info),
-            (None, None) => "> ".to_string(),
+            (None, Some(info)) => format!("({}) {}> ", info, prompt_cmd_str),
+            (None, None) => format!("{}> ", prompt_cmd_str),
         };
+
+        // 現在のプログラムのコンテキスト(exp. git/cargo)を取得
+        let current_context_prog = target_ctx.map(|ctx| ctx.program.as_str());
 
         // ユーザーの入力を待機
         let readline = rl.readline(&prompt);
@@ -106,7 +123,7 @@ fn run_repl(target_ctx: Option<&TargetContext>, base_path: &Path) -> Result<()> 
 
                 match action {
                     CommandAction::Execute { program, args } => {
-                        execute_child_process(&program, args);
+                        execute_child_process(&program, args, current_context_prog);
                     }
                     CommandAction::ChangeDirectory(target) => {
                         if let Some(path) = target
@@ -117,11 +134,11 @@ fn run_repl(target_ctx: Option<&TargetContext>, base_path: &Path) -> Result<()> 
                     }
                     CommandAction::Clear(args) => {
                         let program = "clear";
-                        execute_child_process(program, args);
+                        execute_child_process(program, args, None);
                     }
                     CommandAction::Pwd(args) => {
                         let program = "pwd";
-                        execute_child_process(program, args);
+                        execute_child_process(program, args, None);
                     }
                     CommandAction::History => {
                         for (idx, history) in rl.history().iter().enumerate() {
@@ -133,6 +150,9 @@ fn run_repl(target_ctx: Option<&TargetContext>, base_path: &Path) -> Result<()> 
                     }
                     CommandAction::DoNothing => {}
                     CommandAction::Exit => break,
+                    CommandAction::ExitAll => {
+                        process::exit(127);
+                    }
                     CommandAction::Error(msg) => eprintln!("Error: {}", msg),
                 }
             }
