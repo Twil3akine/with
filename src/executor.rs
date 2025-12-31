@@ -24,18 +24,19 @@ pub fn execute_child_process(program: &str, args: Vec<String>, current_context_p
     command.args(args);
 
     // 現在のスタックを取得
-    let parent_stack = env::var("WITH_CONTEXT_STACK").unwrap_or_default();
+    let parent_stack = env::var("WITH_CONTEXT_STACK").ok();
 
     // 新しいスタックを構築
-    if let Some(ctx) = current_context_prog {
-        let new_stack = if parent_stack.is_empty() {
-            ctx.to_string()
-        } else {
-            format!("{}/{}", parent_stack, ctx)
-        };
-        // 子プロセスに環境変数をセット
-        command.env("WITH_CONTEXT_STACK", new_stack);
-    }
+    let new_stack = match parent_stack {
+        Some(parent) => {
+            let ctx = current_context_prog.unwrap_or("");
+            format!("{}/{}", parent, ctx)
+        }
+        None => String::new(),
+    };
+
+    // 環境変数が空じゃないならセットする
+    command.env("WITH_CONTEXT_STACK", new_stack);
 
     // spawn() でプロセスを開始
     match command.spawn() {

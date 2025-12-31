@@ -90,14 +90,19 @@ fn run_repl(target_ctx: Option<&TargetContext>, base_path: &Path) -> Result<()> 
                 format!("{} {}", full_context, ctx.args.join(" "))
             }
         } else {
-            String::new()
+            // コンテキストがなくても文字列を追加
+            if let Some(stack) = &env_stack {
+                format!("{}/", stack)
+            } else {
+                String::new()
+            }
         };
 
         let prompt = match (target_ctx, context_info) {
             (Some(_cmd), Some(info)) => format!("({}) {}> ", info, prompt_cmd_str),
             (Some(_cmd), None) => format!("{}> ", prompt_cmd_str),
-            (None, Some(info)) => format!("({}) > ", info),
-            (None, None) => "> ".to_string(),
+            (None, Some(info)) => format!("({}) {}> ", info, prompt_cmd_str),
+            (None, None) => format!("{}> ", prompt_cmd_str),
         };
 
         // 現在のプログラムのコンテキスト(exp. git/cargo)を取得
