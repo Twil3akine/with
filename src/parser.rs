@@ -68,6 +68,13 @@ pub fn parse_cmd(line: &str, context: Option<&TargetContext>) -> CommandAction {
             };
             CommandAction::ChangeDirectory(target)
         }
+        "rc" | "recursive" => {
+            args.remove(0);
+            CommandAction::Execute {
+                program: "with".to_string(),
+                args,
+            }
+        }
         "clear" | "cls" => {
             args.remove(0);
             CommandAction::Clear(args)
