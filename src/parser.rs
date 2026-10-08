@@ -55,6 +55,23 @@ pub fn parse_cmd(line: &str, context: Option<&TargetContext>) -> CommandAction {
         return CommandAction::DoNothing;
     }
 
+    if let Some(ctx) = context
+        && args.first().is_some_and(|arg| arg == &ctx.program)
+    {
+        eprintln!(
+            "warning: duplicated context prefix \"{}\" ignored",
+            ctx.program
+        );
+        args.remove(0);
+
+        let mut final_args = ctx.args.clone();
+        final_args.append(&mut args);
+        return CommandAction::Execute {
+            program: ctx.program.clone(),
+            args: final_args,
+        };
+    }
+
     // 先頭の要素（コマンド名候補）を取得
     let first_arg: &str = &args[0];
 
@@ -158,6 +175,55 @@ mod tests {
         let ctx = create_ctx("git", &[]);
         let action = parse_cmd("commit -m \"msg\"", ctx.as_ref());
         assert_execute(action, "git", &["commit", "-m", "msg"]);
+    }
+
+    #[test]
+    fn test_repeated_context_prefix_is_ignored() {
+        let ctx = create_ctx("git", &[]);
+        let action = parse_cmd("git push", ctx.as_ref());
+        assert_execute(action, "git", &["push"]);
+    }
+
+    #[test]
+    fn test_context_push_without_repeated_prefix_is_unchanged() {
+        let ctx = create_ctx("git", &[]);
+        let action = parse_cmd("push", ctx.as_ref());
+        assert_execute(action, "git", &["push"]);
+    }
+
+    #[test]
+    fn test_repeated_context_prefix_does_not_dispatch_builtin() {
+        let ctx = create_ctx("git", &[]);
+        let action = parse_cmd("git help", ctx.as_ref());
+        assert_execute(action, "git", &["help"]);
+    }
+
+    #[test]
+    fn test_repeated_context_prefix_preserves_context_args() {
+        let ctx = create_ctx("git", &["remote"]);
+        let action = parse_cmd("git push", ctx.as_ref());
+        assert_execute(action, "git", &["remote", "push"]);
+    }
+
+    #[test]
+    fn test_repeated_context_prefix_alone_executes_context() {
+        let ctx = create_ctx("git", &["status"]);
+        let action = parse_cmd("git", ctx.as_ref());
+        assert_execute(action, "git", &["status"]);
+    }
+
+    #[test]
+    fn test_similar_context_prefix_is_not_removed() {
+        let ctx = create_ctx("git", &[]);
+        let action = parse_cmd("gitfoo push", ctx.as_ref());
+        assert_execute(action, "git", &["gitfoo", "push"]);
+    }
+
+    #[test]
+    fn test_escape_command_with_context_prefix_is_preserved() {
+        let ctx = create_ctx("git", &[]);
+        let action = parse_cmd("!git push", ctx.as_ref());
+        assert_execute(action, "git", &["push"]);
     }
 
     #[test]

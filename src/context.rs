@@ -34,20 +34,35 @@ fn parse_git_head(content: &str) -> Option<String> {
     None
 }
 
-/// カレントディレクトリから遡って .git/HEAD を探し、ブランチ名を返す
+/// カレントディレクトリから遡って最も近い Git worktree のブランチ名を返す
 pub fn get_git_branch(cwd: &Path) -> Option<String> {
     let mut current = cwd;
 
     loop {
-        let git_dir = current.join(".git");
-        let head_path = git_dir.join("HEAD");
+        let git_path = current.join(".git");
 
-        if head_path.exists() {
-            // HEADファイルを読み込む
-            if let Ok(content) = fs::read_to_string(head_path) {
-                return parse_git_head(&content);
+        if git_path.is_dir() {
+            return fs::read_to_string(git_path.join("HEAD"))
+                .ok()
+                .and_then(|content| parse_git_head(&content));
+        }
+
+        if git_path.is_file() {
+            let git_file = fs::read_to_string(&git_path).ok()?;
+            let git_dir = git_file.trim().strip_prefix("gitdir:")?.trim();
+            if git_dir.is_empty() {
+                return None;
             }
-            return None;
+
+            let git_dir = Path::new(git_dir);
+            let git_dir = if git_dir.is_absolute() {
+                git_dir.to_path_buf()
+            } else {
+                current.join(git_dir)
+            };
+            return fs::read_to_string(git_dir.join("HEAD"))
+                .ok()
+                .and_then(|content| parse_git_head(&content));
         }
 
         match current.parent() {
@@ -61,6 +76,17 @@ pub fn get_git_branch(cwd: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static TEMP_DIR_COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+    fn temporary_directory() -> std::path::PathBuf {
+        let id = TEMP_DIR_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let path =
+            std::env::temp_dir().join(format!("with-context-test-{}-{id}", std::process::id()));
+        fs::create_dir_all(&path).unwrap();
+        path
+    }
 
     // --- resolve_display_dir のテスト ---
 
@@ -171,5 +197,64 @@ mod tests {
         // 実際に返ってくる値を検証（環境依存の可能性があるため緩めにチェック）
         let result = resolve_display_dir(&current, &base);
         assert!(result.is_some());
+    }
+
+    #[test]
+    fn git_branch_in_submodule_uses_its_git_file_and_branch() {
+        let root = temporary_directory();
+        let parent_git = root.join(".git");
+        let submodule = root.join("vendor").join("library");
+        let module_git = parent_git.join("modules").join("library");
+        fs::create_dir_all(&parent_git).unwrap();
+        fs::create_dir_all(&module_git).unwrap();
+        fs::create_dir_all(submodule.join("src")).unwrap();
+        fs::write(parent_git.join("HEAD"), "ref: refs/heads/main\n").unwrap();
+        fs::write(module_git.join("HEAD"), "ref: refs/heads/develop\n").unwrap();
+        fs::write(
+            submodule.join(".git"),
+            "gitdir: ../../.git/modules/library\n",
+        )
+        .unwrap();
+
+        assert_eq!(
+            get_git_branch(&submodule.join("src")),
+            Some("develop".to_string())
+        );
+
+        fs::write(
+            submodule.join(".git"),
+            format!("gitdir: {}\n", module_git.display()),
+        )
+        .unwrap();
+        fs::write(
+            module_git.join("HEAD"),
+            "a1b2c3d4e5f67890abcdef1234567890abcdef12\n",
+        )
+        .unwrap();
+        assert_eq!(
+            get_git_branch(&submodule.join("src")),
+            Some("a1b2c3d".to_string())
+        );
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn git_branch_uses_nearest_repository_and_returns_none_outside_git() {
+        let root = temporary_directory();
+        let repository = root.join("repository");
+        let nested = repository.join("src").join("nested");
+        fs::create_dir_all(repository.join(".git")).unwrap();
+        fs::create_dir_all(&nested).unwrap();
+        fs::write(
+            repository.join(".git").join("HEAD"),
+            "ref: refs/heads/main\n",
+        )
+        .unwrap();
+
+        assert_eq!(get_git_branch(&nested), Some("main".to_string()));
+        assert_eq!(get_git_branch(&root), None);
+
+        fs::remove_dir_all(root).unwrap();
     }
 }
